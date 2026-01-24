@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
+from app.api import api_router
 
 
 @asynccontextmanager
@@ -31,6 +32,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include API routes
+app.include_router(api_router, prefix=settings.api_prefix)
+
 
 @app.get("/health")
 async def health_check():
@@ -39,6 +43,7 @@ async def health_check():
         "status": "healthy",
         "app": settings.app_name,
         "version": "0.1.0",
+        "llm_provider": settings.llm_provider,
     }
 
 
@@ -50,4 +55,5 @@ async def root():
         "description": "Financial Analyst Copilot API",
         "docs": "/docs",
         "health": "/health",
+        "chat": f"{settings.api_prefix}/chat",
     }
