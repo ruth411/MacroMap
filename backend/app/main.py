@@ -57,3 +57,16 @@ async def root():
         "health": "/health",
         "chat": f"{settings.api_prefix}/chat",
     }
+
+
+@app.get("/debug/env")
+async def debug_env():
+    """Debug endpoint to check environment variables."""
+    import os
+    return {
+        "openai_key_set": bool(settings.openai_api_key),
+        "openai_key_length": len(settings.openai_api_key) if settings.openai_api_key else 0,
+        "openai_key_prefix": settings.openai_api_key[:10] + "..." if settings.openai_api_key else "NOT SET",
+        "env_openai_key_set": bool(os.environ.get("OPENAI_API_KEY")),
+        "llm_provider": settings.llm_provider,
+    }
