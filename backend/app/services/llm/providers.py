@@ -9,6 +9,7 @@ Supports multiple LLM backends:
 """
 
 import json
+import os
 from abc import ABC, abstractmethod
 from typing import AsyncGenerator, Optional
 
@@ -16,6 +17,16 @@ import httpx
 from openai import AsyncOpenAI
 
 from app.core.config import settings
+
+
+def get_openai_api_key() -> str:
+    """Get OpenAI API key from environment or settings."""
+    # Try direct environment variable first (Railway)
+    key = os.environ.get("OPENAI_API_KEY", "")
+    if key:
+        return key
+    # Fall back to pydantic settings
+    return settings.openai_api_key
 
 
 class BaseLLMProvider(ABC):
@@ -42,7 +53,8 @@ class OpenAIProvider(BaseLLMProvider):
     """OpenAI provider for GPT models."""
 
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        api_key = get_openai_api_key()
+        self.client = AsyncOpenAI(api_key=api_key)
         self.model = settings.openai_model
 
     async def generate(

@@ -63,10 +63,14 @@ async def root():
 async def debug_env():
     """Debug endpoint to check environment variables."""
     import os
+    env_key = os.environ.get("OPENAI_API_KEY", "")
+    all_env_keys = [k for k in os.environ.keys() if "OPENAI" in k.upper() or "API" in k.upper()]
     return {
-        "openai_key_set": bool(settings.openai_api_key),
-        "openai_key_length": len(settings.openai_api_key) if settings.openai_api_key else 0,
-        "openai_key_prefix": settings.openai_api_key[:10] + "..." if settings.openai_api_key else "NOT SET",
-        "env_openai_key_set": bool(os.environ.get("OPENAI_API_KEY")),
+        "settings_openai_key_set": bool(settings.openai_api_key),
+        "settings_openai_key_length": len(settings.openai_api_key) if settings.openai_api_key else 0,
+        "env_openai_key_set": bool(env_key),
+        "env_openai_key_length": len(env_key) if env_key else 0,
+        "env_openai_key_prefix": env_key[:15] + "..." if env_key else "NOT SET",
+        "related_env_vars": all_env_keys,
         "llm_provider": settings.llm_provider,
     }
