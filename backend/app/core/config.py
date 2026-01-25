@@ -62,9 +62,11 @@ class Settings(BaseSettings):
     max_tokens: int = 2048
     temperature: float = 0.7
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
 
 settings = Settings()
