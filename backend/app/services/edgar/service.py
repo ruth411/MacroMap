@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Optional
 
 from app.core.config import settings
-from app.services.chunking import ChunkingService, get_chunking_service, Chunk
+from app.services.chunking.service import ChunkingService, get_chunking_service
+from app.services.chunking.models import Chunk
 from .client import EdgarClient, get_edgar_client, EdgarAPIError
 from .parser import FilingParser, get_filing_parser
 from .models import (

@@ -2,11 +2,13 @@
 
 import hashlib
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from app.core.config import settings
-from app.services.edgar.models import ParsedFiling, Section
 from .models import Chunk, ChunkMetadata
+
+if TYPE_CHECKING:
+    from app.services.edgar.models import ParsedFiling, Section
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,7 @@ class ChunkingService:
         self.chunk_size = chunk_size or settings.chunk_size  # 1000
         self.chunk_overlap = chunk_overlap or settings.chunk_overlap  # 200
 
-    def chunk_filing(self, parsed_filing: ParsedFiling) -> list[Chunk]:
+    def chunk_filing(self, parsed_filing: "ParsedFiling") -> list[Chunk]:
         """
         Chunk a parsed filing into RAG-ready chunks.
 
@@ -57,7 +59,7 @@ class ChunkingService:
 
     def chunk_section(
         self,
-        section: Section,
+        section: "Section",
         metadata,  # FilingMetadata
     ) -> list[Chunk]:
         """
