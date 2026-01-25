@@ -1,176 +1,286 @@
-# 🌍 MacroMap
+# Financial Analyst Copilot (SEC EDGAR RAG)
 
-> Interactive visualization platform for exploring global macroeconomic indicators
-
-[![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-18+-61DAFB?style=flat&logo=react&logoColor=black)](https://reactjs.org/)
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?style=flat&logo=vercel&logoColor=white)](https://macro-map-one.vercel.app)
+A full-stack prototype that turns SEC EDGAR filings (10-K/10-Q) into a searchable, citeable knowledge base and lets you ask questions through a chat UI. The backend ingests filings, parses them into sections, chunks + embeds the text, stores vectors in ChromaDB, and answers questions using Retrieval-Augmented Generation (RAG). The frontend is a lightweight Next.js chat experience.
 
 ---
 
-## 📋 Overview
+## What’s in this repo (source of truth)
 
-MacroMap is a full-stack web application that provides intuitive visualizations of macroeconomic data across countries and time periods. The platform enables users to explore, compare, and analyze key economic indicators through interactive charts and geographic maps.
+### Backend (FastAPI)
+- EDGAR ingestion (download + parse filings into sections)
+- Chunking with overlap + metadata (ticker, form, accession, section, etc.)
+- Vector store: **ChromaDB (persistent)**
+- Embeddings: **OpenAI `text-embedding-3-small`**
+- LLM providers supported (generation): OpenAI / Ollama / Bedrock / HuggingFace (via an adapter)
+- RAG chat endpoint with inline **Sources** appended when retrieval is used
+- Deployment entrypoints for **Railway** and **Vercel** (serverless handler)
 
-### Key Features
-
-- **Interactive Global Map** — Explore economic indicators geographically with color-coded visualizations
-- **Multi-Indicator Analysis** — Compare GDP, inflation, unemployment, trade balances, and more
-- **Historical Trends** — View time-series data with customizable date ranges
-- **Country Comparisons** — Side-by-side analysis of multiple economies
-- **Real-time Data** — Integration with authoritative economic data sources
-- **Responsive Design** — Optimized for desktop and mobile viewing
-
----
-
-## 🛠️ Tech Stack
-
-| Layer | Technologies |
-|-------|-------------|
-| **Frontend** | TypeScript, React, CSS |
-| **Backend** | Python, FastAPI/Flask |
-| **Data Visualization** | Chart.js / Recharts / D3.js |
-| **Deployment** | Vercel (Frontend), Railway/Render (Backend) |
-| **Data Sources** | World Bank API, FRED, IMF |
+### Frontend (Next.js)
+- Landing page + `/chat` page
+- Calls backend for health + chat
+- Minimal UI components (chat, status pill, clear session)
 
 ---
 
-## 📁 Project Structure
+## Quickstart (local)
 
-```
-MacroMap/
-├── frontend/           # React TypeScript application
-│   ├── src/
-│   │   ├── components/ # Reusable UI components
-│   │   ├── pages/      # Page components
-│   │   ├── hooks/      # Custom React hooks
-│   │   ├── services/   # API integration
-│   │   ├── types/      # TypeScript type definitions
-│   │   └── utils/      # Helper functions
-│   └── package.json
-├── backend/            # Python API server
-│   ├── app/
-│   │   ├── routes/     # API endpoints
-│   │   ├── services/   # Business logic
-│   │   ├── models/     # Data models
-│   │   └── utils/      # Utility functions
-│   └── requirements.txt
-├── .gitignore
-└── MacroMap_Project_Proposal.pdf
+### 1) Prerequisites
+- Node.js 18+ (or 20+ recommended)
+- Python 3.10+
+- An EDGAR-compliant **User-Agent** (required by SEC)
+- OpenAI API key (required for embeddings; generation can use other providers but embeddings are OpenAI-only in this repo)
+
+### 2) Clone
+```bash
+git clone https://github.com/ruth411/MacroMap.git
+cd MacroMap-main
 ```
 
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Node.js 18+ and npm
-- Python 3.9+
-- Git
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/ruth411/MacroMap.git
-   cd MacroMap
-   ```
-
-2. **Set up the backend**
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
-
-3. **Set up the frontend**
-   ```bash
-   cd ../frontend
-   npm install
-   ```
-
-### Running Locally
-
-1. **Start the backend server**
-   ```bash
-   cd backend
-   source venv/bin/activate
-   python main.py
-   # or: uvicorn app.main:app --reload
-   ```
-   Backend runs at `http://localhost:8000`
-
-2. **Start the frontend development server**
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-   Frontend runs at `http://localhost:5173`
+> If your folder name differs (e.g., `MacroMap`), adjust the paths accordingly.
 
 ---
 
-## 🔧 Configuration
+## Backend setup (FastAPI)
 
-### Environment Variables
+### 1) Create venv + install deps
+```bash
+cd backend
 
-Create `.env` files in both `frontend/` and `backend/` directories:
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
 
-**Backend (`backend/.env`)**
-```env
-API_KEY=your_data_source_api_key
-DATABASE_URL=your_database_url
-CORS_ORIGINS=http://localhost:5173
+pip install -r requirements.txt
 ```
 
-**Frontend (`frontend/.env`)**
-```env
-VITE_API_URL=http://localhost:8000
+### 2) Configure environment variables
+Create `backend/.env` (or export variables in your shell):
+
+```bash
+# Required for EDGAR requests (SEC policy)
+SEC_USER_AGENT="Your Name your.email@domain.com"
+
+# Required for embeddings (OpenAI)
+OPENAI_API_KEY="sk-..."
+
+# Optional: choose your generation provider (defaults vary by config)
+# Examples:
+LLM_PROVIDER="openai"        # openai | ollama | bedrock | huggingface
+OPENAI_MODEL="gpt-4o-mini"   # or your preferred model
 ```
 
----
+### 3) Run the backend
+```bash
+uvicorn app.main:app --reload --port 8000
+```
 
-## 📊 API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/indicators` | List available economic indicators |
-| `GET` | `/api/countries` | List available countries |
-| `GET` | `/api/data/{indicator}/{country}` | Get indicator data for a country |
-| `GET` | `/api/compare` | Compare indicators across countries |
+Check:
+- Health: `GET http://localhost:8000/health`
+- API docs (FastAPI): `http://localhost:8000/docs`
 
 ---
 
-## 🤝 Contributing
+## Frontend setup (Next.js)
 
-Contributions are welcome! Please follow these steps:
+### 1) Install deps
+```bash
+cd ../frontend
+npm install
+```
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+### 2) Configure API URL
+Create `frontend/.env.local`:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+### 3) Run the frontend
+```bash
+npm run dev
+```
+
+Open:
+- `http://localhost:3000`
 
 ---
 
-## 📄 License
+## How to use (EDGAR → Index → Chat)
 
-This project is open source and available under the [MIT License](LICENSE).
+### Step A — Ingest filings from EDGAR
+The backend stores raw filings + parsed JSON locally:
+
+```bash
+# Example: ingest a ticker (10-K/10-Q depending on your request payload)
+curl -X POST "http://localhost:8000/api/v1/edgar/ingest" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ticker": "AAPL",
+    "filing_types": ["10-K", "10-Q"],
+    "limit": 4
+  }'
+```
+
+This returns a `task_id`. Poll status:
+
+```bash
+curl "http://localhost:8000/api/v1/edgar/status/<task_id>"
+```
+
+Artifacts written locally:
+- `backend/data/filings/<TICKER>/<FORM>/<ACCESSION>.html`
+- `backend/data/parsed/<TICKER>/<FORM>/<ACCESSION>.json`
+
+> Ingestion **does not automatically index embeddings**. Indexing is a separate step.
 
 ---
 
-## 👤 Author
+### Step B — Index parsed filings into the vector store (Chroma)
+Index a single ticker:
 
-**Ruthwik Dovala**
-- GitHub: [@ruth411](https://github.com/ruth411)
-- Website: [ruthwikdovala.com](https://ruthwikdovala.com)
+```bash
+curl -X POST "http://localhost:8000/api/v1/retrieval/index" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "ticker": "AAPL"
+  }'
+```
+
+Or index everything under `backend/data/parsed`:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/retrieval/index-all"
+```
+
+Stats / sanity checks:
+```bash
+curl "http://localhost:8000/api/v1/retrieval/stats"
+curl "http://localhost:8000/api/v1/retrieval/health"
+```
+
+Chroma persistence location:
+- `backend/data/chroma`
 
 ---
 
-## 🙏 Acknowledgments
+### Step C — Chat with RAG enabled
+In the UI (frontend), go to `/chat` and ask questions.
 
-- [World Bank Open Data](https://data.worldbank.org/) for economic data
-- [FRED Economic Data](https://fred.stlouisfed.org/) for US economic indicators
-- [IMF Data](https://www.imf.org/en/Data) for international financial statistics
+Or via cURL:
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/chat/" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "session_id": "demo-session-1",
+    "message": "Summarize risk factors discussed in the most recent 10-K.",
+    "use_rag": true,
+    "use_templates": true,
+    "ticker_filter": "AAPL",
+    "filing_type_filter": "10-K"
+  }'
+```
+
+If retrieval finds relevant chunks, the response will include a **Sources** section.
+
+---
+
+## API overview
+
+Base prefix:
+- `/api/v1`
+
+### Chat
+- `POST /api/v1/chat/` — send a message (supports RAG + filters)
+- `GET  /api/v1/chat/health` — LLM health check
+- `POST /api/v1/chat/clear` — clear a session’s in-memory history
+
+### EDGAR
+- `POST /api/v1/edgar/ingest` — background ingestion task
+- `GET  /api/v1/edgar/status/{task_id}` — check ingestion progress
+- `GET  /api/v1/edgar/filings/{ticker}` — list locally stored filings
+- `GET  /api/v1/edgar/filings/{ticker}/{accession}` — get parsed filing data
+
+### Retrieval / Vector Search
+- `POST /api/v1/retrieval/index` — chunk + embed + upsert a ticker’s parsed filings
+- `POST /api/v1/retrieval/index-all` — index everything already parsed
+- `POST /api/v1/retrieval/search` — semantic search (debug)
+- `GET  /api/v1/retrieval/stats` — collection stats
+- `GET  /api/v1/retrieval/stats/{ticker}` — stats by ticker
+- `DELETE /api/v1/retrieval/{ticker}` — remove ticker docs from the vector store
+- `GET  /api/v1/retrieval/health` — vector store health
+
+---
+
+## Architecture (current)
+
+1. **Ingest**
+   - Resolve CIK for ticker
+   - Fetch filings list from SEC submissions API
+   - Download filing HTML
+   - Parse filing into sections (Item 1, 1A, 7, 8, etc.)
+   - Save `data/filings` + `data/parsed`
+
+2. **Index**
+   - Chunk parsed sections with overlap
+   - Embed with OpenAI embeddings
+   - Upsert into ChromaDB with metadata
+
+3. **Chat**
+   - Optionally retrieve top chunks (with ticker/form filters)
+   - Inject retrieved context into the prompt
+   - Generate response via configured LLM provider
+   - Append **Sources** (citations) when available
+
+---
+
+## Configuration notes
+
+### SEC User-Agent is mandatory
+The SEC requires a descriptive User-Agent string. Set:
+```bash
+SEC_USER_AGENT="Your Name your.email@domain.com"
+```
+
+### Embeddings are OpenAI-only (today)
+Even if you use Ollama/Bedrock/HF for generation, indexing currently uses OpenAI embeddings.
+
+### Data persistence
+- Parsed filings and raw HTML persist under `backend/data/`
+- Vectors persist under `backend/data/chroma`
+- Chat history is **in-memory** by `session_id` (lost on server restart)
+
+---
+
+## Troubleshooting
+
+### “No sources” / RAG not working
+- Confirm you **indexed** after ingestion:
+  - `POST /api/v1/retrieval/index` (or `/index-all`)
+- Confirm vector store has docs:
+  - `GET /api/v1/retrieval/stats`
+
+### SEC request failures (403 / throttling)
+- Ensure `SEC_USER_AGENT` is set and descriptive
+- Slow down ingestion / reduce limits (avoid rapid repeated calls)
+- Try again later; EDGAR endpoints rate limit aggressively
+
+### Frontend can’t reach backend
+- Check `NEXT_PUBLIC_API_URL` in `frontend/.env.local`
+- Ensure backend is running on the port you configured
+
+---
+
+## Roadmap ideas
+- XBRL extraction and deterministic KPI calculations (margin, liquidity, leverage)
+- Multi-document comparisons (peer benchmarking)
+- Evaluation harness (answer quality + citation correctness)
+- Persistent chat history (DB-backed sessions)
+- Auth + per-user workspaces (tickers, watchlists, notes)
+
+---
+
+## License
+Add a license file if you intend for others to reuse this code.
