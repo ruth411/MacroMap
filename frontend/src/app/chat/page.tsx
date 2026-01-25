@@ -85,25 +85,25 @@ export default function ChatPage() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold text-zinc-900 dark:text-zinc-50">
+        <div className="container mx-auto px-6 py-5 flex items-center justify-between max-w-7xl">
+          <Link href="/" className="text-2xl font-bold text-zinc-900 dark:text-zinc-50">
             MacroMap
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-6">
             {llmHealth && (
-              <span className={`text-xs px-2 py-1 rounded ${llmHealth.healthy ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              <span className={`text-sm px-3 py-1.5 rounded-full ${llmHealth.healthy ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                 {llmHealth.healthy ? `${llmHealth.provider}: ${llmHealth.model}` : 'LLM Offline'}
               </span>
             )}
-            <span className="text-sm text-zinc-500">Financial Analyst Copilot</span>
+            <span className="text-base text-zinc-500">Financial Analyst Copilot</span>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-6 max-w-5xl">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-140px)]">
+      <div className="container mx-auto px-6 py-8 max-w-7xl">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 h-[calc(100vh-160px)]">
           {/* Main Chat Area */}
-          <div className="lg:col-span-2 flex flex-col">
+          <div className="lg:col-span-3 flex flex-col">
             <Card className="flex-1 flex flex-col">
               <CardHeader className="border-b flex flex-row items-center justify-between">
                 <CardTitle className="text-lg">Financial Analysis Chat</CardTitle>
@@ -114,20 +114,20 @@ export default function ChatPage() {
                 )}
               </CardHeader>
               <CardContent className="flex-1 p-0">
-                <ScrollArea className="h-[calc(100vh-340px)] p-4">
+                <ScrollArea className="h-[calc(100vh-360px)] p-6">
                   {messages.length === 0 ? (
-                    <div className="text-center text-zinc-500 py-12">
-                      <p className="text-lg mb-4">Welcome to MacroMap</p>
-                      <p className="mb-4">Ask questions about financial concepts, ratios, valuation, and more.</p>
-                      <div className="text-sm space-y-2">
+                    <div className="text-center text-zinc-500 py-16">
+                      <p className="text-2xl mb-6 font-medium">Welcome to MacroMap</p>
+                      <p className="mb-6 text-lg">Ask questions about financial concepts, ratios, valuation, and more.</p>
+                      <div className="text-base space-y-3">
                         <p className="font-medium">Try asking:</p>
-                        <p>&quot;What is the P/E ratio and how do I interpret it?&quot;</p>
-                        <p>&quot;Explain the difference between EBITDA and Net Income&quot;</p>
-                        <p>&quot;How does the Federal Reserve affect stock prices?&quot;</p>
+                        <p className="text-zinc-400">&quot;What is the P/E ratio and how do I interpret it?&quot;</p>
+                        <p className="text-zinc-400">&quot;Explain the difference between EBITDA and Net Income&quot;</p>
+                        <p className="text-zinc-400">&quot;How does the Federal Reserve affect stock prices?&quot;</p>
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       {messages.map((message, i) => (
                         <div
                           key={i}
@@ -136,7 +136,7 @@ export default function ChatPage() {
                           }`}
                         >
                           <div
-                            className={`max-w-[85%] rounded-lg px-4 py-3 ${
+                            className={`max-w-[90%] rounded-xl px-5 py-4 ${
                               message.role === "user"
                                 ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
                                 : "bg-zinc-100 dark:bg-zinc-800"
@@ -163,21 +163,21 @@ export default function ChatPage() {
                   )}
                 </ScrollArea>
               </CardContent>
-              <div className="p-4 border-t">
+              <div className="p-6 border-t">
                 {error && (
-                  <div className="mb-2 text-sm text-red-600 dark:text-red-400">
+                  <div className="mb-3 text-sm text-red-600 dark:text-red-400">
                     {error}
                   </div>
                 )}
-                <form onSubmit={handleSubmit} className="flex gap-2">
+                <form onSubmit={handleSubmit} className="flex gap-4">
                   <Input
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     placeholder="Ask a financial question..."
                     disabled={loading}
-                    className="flex-1"
+                    className="flex-1 h-12 text-base px-4"
                   />
-                  <Button type="submit" disabled={loading || !input.trim()}>
+                  <Button type="submit" disabled={loading || !input.trim()} className="h-12 px-8">
                     {loading ? "..." : "Send"}
                   </Button>
                 </form>
