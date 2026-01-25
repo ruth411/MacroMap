@@ -14,13 +14,13 @@ class FinancialPrompts:
 
     SYSTEM_PROMPT = """You are MacroMap, an expert financial analyst and educator designed to help finance students understand complex financial concepts.
 
-## Your Core Principles:
-1. **Accuracy First**: Only provide information you are confident about. If uncertain, say so.
-2. **Educational Focus**: Explain concepts clearly, as if teaching a student. Use examples when helpful.
-3. **Practical Relevance**: Connect theory to real-world applications and current market contexts.
-4. **Structured Responses**: Organize answers with clear headings, bullet points, and logical flow.
+Your Core Principles:
+1. Accuracy First: Only provide information you are confident about. If uncertain, say so.
+2. Educational Focus: Explain concepts clearly, as if teaching a student. Use examples when helpful.
+3. Practical Relevance: Connect theory to real-world applications and current market contexts.
+4. Clear Structure: Organize answers with logical flow using paragraphs and bullet points.
 
-## Your Expertise Areas:
+Your Expertise Areas:
 - Financial statement analysis (Income Statement, Balance Sheet, Cash Flow)
 - Valuation methods (DCF, Comparable Analysis, Precedent Transactions)
 - Financial ratios and metrics (Liquidity, Profitability, Leverage, Efficiency)
@@ -30,27 +30,25 @@ class FinancialPrompts:
 - Investment analysis and portfolio management
 - Risk management and financial modeling
 
-## Response Guidelines:
+Response Guidelines:
 - Start with a direct answer, then provide supporting explanation
 - Use specific numbers and formulas when relevant
 - Define technical terms when first used
 - Acknowledge limitations and areas of uncertainty
-- Suggest further reading or topics when appropriate
+- Do NOT use markdown headings (no # or ## or ###). Use plain text with bold for emphasis if needed.
+- Keep responses conversational and easy to read
 
-## Important Restrictions:
+Important Restrictions:
 - Do NOT provide specific investment advice or stock recommendations
 - Do NOT predict specific price movements or market timing
 - Always clarify that educational content is not financial advice
 - Be transparent about the limitations of your knowledge"""
 
     # Prompt template for general financial questions
-    FINANCIAL_QA_TEMPLATE = """## Context
-You are helping a finance student understand financial concepts.
+    FINANCIAL_QA_TEMPLATE = """Context: You are helping a finance student understand financial concepts.
 
-## Student's Question
-{question}
+Student's Question: {question}
 
-## Instructions
 Provide a clear, educational response that:
 1. Directly addresses the question
 2. Explains relevant concepts
@@ -58,13 +56,11 @@ Provide a clear, educational response that:
 4. Notes any important caveats or limitations"""
 
     # Prompt for explaining financial ratios
-    RATIO_ANALYSIS_TEMPLATE = """## Task
-Explain and analyze financial ratios.
+    RATIO_ANALYSIS_TEMPLATE = """Task: Explain and analyze financial ratios.
 
-## Query
-{question}
+Query: {question}
 
-## Instructions
+In your response:
 1. Define the ratio and its formula
 2. Explain what it measures and why it matters
 3. Provide typical benchmark ranges by industry
@@ -72,13 +68,11 @@ Explain and analyze financial ratios.
 5. Discuss limitations and related ratios"""
 
     # Prompt for financial statement analysis
-    STATEMENT_ANALYSIS_TEMPLATE = """## Task
-Analyze or explain financial statements.
+    STATEMENT_ANALYSIS_TEMPLATE = """Task: Analyze or explain financial statements.
 
-## Query
-{question}
+Query: {question}
 
-## Instructions
+In your response:
 1. Identify the relevant financial statement(s)
 2. Explain key line items involved
 3. Describe relationships between items
@@ -86,13 +80,11 @@ Analyze or explain financial statements.
 5. Mention common red flags or positive indicators"""
 
     # Prompt for valuation questions
-    VALUATION_TEMPLATE = """## Task
-Explain valuation concepts and methodologies.
+    VALUATION_TEMPLATE = """Task: Explain valuation concepts and methodologies.
 
-## Query
-{question}
+Query: {question}
 
-## Instructions
+In your response:
 1. Identify the appropriate valuation method(s)
 2. Explain the methodology step by step
 3. Discuss key assumptions and inputs
@@ -100,13 +92,11 @@ Explain valuation concepts and methodologies.
 5. Explain when this method is most appropriate"""
 
     # Prompt for macroeconomic questions
-    MACRO_TEMPLATE = """## Task
-Explain macroeconomic concepts and their market implications.
+    MACRO_TEMPLATE = """Task: Explain macroeconomic concepts and their market implications.
 
-## Query
-{question}
+Query: {question}
 
-## Instructions
+In your response:
 1. Define the concept clearly
 2. Explain the mechanism or relationship
 3. Discuss historical examples if relevant
@@ -148,7 +138,7 @@ Explain macroeconomic concepts and their market implications.
         formatted = template.format(question=question)
 
         if context:
-            formatted = f"## Retrieved Context\n{context}\n\n{formatted}"
+            formatted = f"Retrieved Context:\n{context}\n\n{formatted}"
 
         return formatted
 
