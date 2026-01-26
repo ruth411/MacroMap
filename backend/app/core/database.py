@@ -18,7 +18,7 @@ class Base(DeclarativeBase):
 
 def _get_database_url() -> str:
     """Get the database URL, converting to async driver if needed."""
-    db_url = settings.database_url
+    db_url = settings.effective_database_url
 
     # Convert standard PostgreSQL URL to async version
     if db_url.startswith("postgresql://"):
@@ -32,14 +32,14 @@ def _get_database_url() -> str:
 
 def _ensure_db_directory():
     """Ensure the database directory exists for SQLite."""
-    db_url = settings.database_url
+    db_url = settings.effective_database_url
     if "sqlite" in db_url:
-        # Extract path from sqlite URL (sqlite+aiosqlite:////path/to/db.db)
+        # Extract path from sqlite URL (sqlite+aiosqlite:////path/to/db.db or sqlite+aiosqlite:///C:/path)
         if "////" in db_url:
-            # Absolute path: sqlite+aiosqlite:////tmp/db.db
+            # Unix absolute path: sqlite+aiosqlite:////tmp/db.db
             db_path = db_url.split("////")[1]
         elif "///" in db_url:
-            # Relative path: sqlite+aiosqlite:///./data/db.db
+            # Relative or Windows path: sqlite+aiosqlite:///./data/db.db or sqlite+aiosqlite:///C:/path
             db_path = db_url.split("///")[1]
         else:
             return

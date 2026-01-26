@@ -1,4 +1,4 @@
-"""Main retrieval service for RAG."""
+"""Main retrieval service for RAG with reranking support."""
 
 import logging
 from typing import TYPE_CHECKING, Optional
@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Optional
 from app.core.config import settings
 from .embeddings import EmbeddingProvider, get_embedding_provider
 from .vector_store import VectorStore, get_vector_store
+from .reranker import BaseReranker, get_reranker
 from .models import RetrievalQuery, RetrievalResult, Citation
 
 if TYPE_CHECKING:
@@ -16,11 +17,12 @@ logger = logging.getLogger(__name__)
 
 class RetrievalService:
     """
-    Main RAG retrieval service.
+    Main RAG retrieval service with reranking support.
 
     Coordinates:
     - Embedding generation
     - Vector store queries
+    - Reranking for improved relevance
     - Metadata filtering
     - Citation formatting
     """
@@ -33,9 +35,23 @@ class RetrievalService:
         self,
         embedding_provider: Optional[EmbeddingProvider] = None,
         vector_store: Optional[VectorStore] = None,
+        reranker: Optional[BaseReranker] = None,
     ):
         self.embeddings = embedding_provider or get_embedding_provider()
         self.vector_store = vector_store or get_vector_store()
+
+        # Initialize reranker based on settings
+        if settings.reranker_enabled:
+            self.reranker = reranker or get_reranker(
+                reranker_type=settings.reranker_type,
+                model_name=settings.reranker_model,
+            )
+            self.reranking_enabled = True
+            logger.info(f"Reranking enabled with {settings.reranker_type}")
+        else:
+            self.reranker = None
+            self.reranking_enabled = False
+            logger.info("Reranking disabled")
 
     async def index_chunks(self, chunks: list["Chunk"]) -> int:
         """
@@ -78,7 +94,13 @@ class RetrievalService:
 
     async def retrieve(self, query: RetrievalQuery) -> RetrievalResult:
         """
-        Retrieve relevant chunks for a query.
+        Retrieve relevant chunks for a query with optional reranking.
+
+        The retrieval pipeline:
+        1. Embed the query
+        2. Fetch initial candidates from vector store (more than needed)
+        3. Rerank candidates using cross-encoder (if enabled)
+        4. Return top_k most relevant results
 
         Args:
             query: RetrievalQuery with query text and filters
@@ -92,16 +114,22 @@ class RetrievalService:
         # Embed query
         query_embedding = await self.embeddings.embed_text(query.query)
 
-        # Query vector store
+        # Determine how many results to fetch initially
+        # If reranking is enabled, fetch more candidates for better reranking results
+        if self.reranking_enabled:
+            initial_k = max(query.top_k, settings.retrieval_initial_k)
+        else:
+            initial_k = query.top_k
+
+        # Query vector store for initial candidates
         results = self.vector_store.query(
             query_embedding=query_embedding,
-            n_results=query.top_k,
+            n_results=initial_k,
             where=where_filter,
         )
 
-        # Build response
-        chunks = []
-        citations = []
+        # Build initial chunk list
+        initial_chunks = []
 
         for doc_id, doc, meta, distance in zip(
             results["ids"],
@@ -112,15 +140,36 @@ class RetrievalService:
             # Convert distance to similarity score (cosine: lower distance is better)
             score = 1 - distance
 
-            chunks.append({
+            initial_chunks.append({
                 "id": doc_id,
                 "text": doc,
                 "metadata": meta,
                 "score": score,
             })
 
+        # Apply reranking if enabled
+        if self.reranking_enabled and self.reranker and len(initial_chunks) > 1:
+            logger.debug(f"Reranking {len(initial_chunks)} chunks...")
+            reranked_chunks = await self.reranker.rerank(
+                query=query.query,
+                documents=initial_chunks,
+                top_k=query.top_k,
+            )
+            chunks = reranked_chunks
+            logger.debug(f"Reranking complete, returning top {len(chunks)} results")
+        else:
+            # No reranking, just take top_k
+            chunks = initial_chunks[:query.top_k]
+
+        # Build citations from final chunks
+        citations = []
+        for chunk in chunks:
+            meta = chunk["metadata"]
+            # Use rerank_score if available, otherwise use original score
+            score = chunk.get("rerank_score", chunk.get("score", 0))
+
             citations.append(Citation(
-                chunk_id=doc_id,
+                chunk_id=chunk["id"],
                 ticker=meta.get("ticker", ""),
                 company_name=meta.get("company_name", ""),
                 filing_type=meta.get("filing_type", ""),
@@ -213,11 +262,18 @@ class RetrievalService:
         embedding_healthy = await self.embeddings.health_check()
         store_stats = self.vector_store.get_stats()
 
+        reranker_info = {
+            "enabled": self.reranking_enabled,
+            "type": settings.reranker_type if self.reranking_enabled else None,
+            "model": settings.reranker_model if self.reranking_enabled else None,
+        }
+
         return {
             "service": "retrieval",
             "healthy": embedding_healthy,
             "embedding_model": self.embeddings.model,
             "vector_store": store_stats,
+            "reranker": reranker_info,
         }
 
 

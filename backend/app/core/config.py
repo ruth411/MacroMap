@@ -9,11 +9,12 @@ class Settings(BaseSettings):
     debug: bool = True
     api_prefix: str = "/api/v1"
 
-    # CORS
+    # CORS - Allow frontend domains to access the API
     cors_origins: list[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://macromap.ruthwikdovala.com",
+        "https://www.macromap.ruthwikdovala.com",
         "https://macro-map-xi.vercel.app",
     ]
 
@@ -44,8 +45,18 @@ class Settings(BaseSettings):
     chroma_dir: Path = data_dir / "chroma"
 
     # Database: Set DATABASE_URL env var for PostgreSQL (Railway provides this)
-    # Falls back to SQLite in /tmp for containers without PostgreSQL
-    database_url: str = "sqlite+aiosqlite:////tmp/macromap.db"
+    # Falls back to SQLite in data directory for local development
+    database_url: str = ""
+
+    @property
+    def effective_database_url(self) -> str:
+        """Get the database URL, with fallback to SQLite in data dir."""
+        import os
+        if self.database_url:
+            return self.database_url
+        # Use data directory for SQLite (works on both Unix and Windows)
+        db_path = self.data_dir / "macromap.db"
+        return f"sqlite+aiosqlite:///{db_path}"
 
     # SEC EDGAR
     sec_user_agent: str = "MacroMap research@example.com"
@@ -57,6 +68,13 @@ class Settings(BaseSettings):
     # Chunking
     chunk_size: int = 1000
     chunk_overlap: int = 200
+
+    # RAG Reranking Settings
+    reranker_enabled: bool = True
+    reranker_type: str = "cross-encoder"  # "cross-encoder", "cohere", "none"
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    reranker_top_k: int = 5  # Final number of results after reranking
+    retrieval_initial_k: int = 15  # Initial retrieval before reranking (fetch more, then rerank)
 
     # Chat Settings
     max_history_length: int = 10
