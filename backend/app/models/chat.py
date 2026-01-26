@@ -65,3 +65,47 @@ class HealthResponse(BaseModel):
     provider: str
     model: str
     healthy: bool
+
+
+# Session models
+class SessionSummary(BaseModel):
+    """Summary of a chat session."""
+    id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    message_count: int = 0
+
+
+class SessionListResponse(BaseModel):
+    """Response for listing sessions."""
+    sessions: list[SessionSummary]
+    total: int
+
+
+class MessageResponse(BaseModel):
+    """Message in a session."""
+    role: str
+    content: str
+    question_type: Optional[str] = None
+    created_at: datetime
+
+
+class SessionDetailResponse(BaseModel):
+    """Detailed session with messages."""
+    id: str
+    title: str
+    created_at: datetime
+    messages: list[MessageResponse]
+
+
+class CreateSessionRequest(BaseModel):
+    """Request to create a session."""
+    title: Optional[str] = None
+
+
+class CreateSessionResponse(BaseModel):
+    """Response after creating a session."""
+    id: str
+    title: str
+    created_at: datetime

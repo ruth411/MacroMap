@@ -5,19 +5,28 @@ Endpoints for chat interactions with the financial assistant.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.chat import (
     ChatRequest,
     ChatResponse,
     ConversationClearRequest,
     HealthResponse,
+    SessionSummary,
+    SessionListResponse,
+    SessionDetailResponse,
+    MessageResponse,
+    CreateSessionRequest,
+    CreateSessionResponse,
 )
 from app.services.llm import LLMService, FinancialPrompts
 from app.services.llm.service import get_llm_service
 from app.services.retrieval.service import get_retrieval_service
 from app.services.retrieval.models import RetrievalQuery
+from app.core.database import get_db
+from app.services.session_service import SessionService
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +34,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> ChatResponse:
     """
     Send a message to the financial assistant.
 
@@ -35,9 +44,17 @@ async def chat(request: ChatRequest) -> ChatResponse:
     """
     try:
         llm_service = get_llm_service()
+        session_service = SessionService(db)
 
         # Detect question type for response metadata
         question_type = FinancialPrompts.detect_question_type(request.message)
+
+        # Persist user message
+        await session_service.add_message(
+            session_id=request.session_id,
+            role="user",
+            content=request.message,
+        )
 
         # RAG retrieval
         context = None
@@ -87,6 +104,14 @@ async def chat(request: ChatRequest) -> ChatResponse:
             response += retrieval_service.format_citations_section(
                 retrieval_result.citations
             )
+
+        # Persist assistant response
+        await session_service.add_message(
+            session_id=request.session_id,
+            role="assistant",
+            content=response,
+            question_type=question_type,
+        )
 
         return ChatResponse(
             response=response,
@@ -146,3 +171,99 @@ async def chat_health() -> HealthResponse:
             model="unknown",
             healthy=False,
         )
+
+
+# Session endpoints
+@router.get("/sessions", response_model=SessionListResponse)
+async def list_sessions(
+    limit: int = 50,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db),
+) -> SessionListResponse:
+    """List all chat sessions."""
+    session_service = SessionService(db)
+    sessions, total = await session_service.list_sessions(limit=limit, offset=offset)
+
+    session_summaries = []
+    for s in sessions:
+        msg_count = await session_service.get_message_count(s.id)
+        session_summaries.append(
+            SessionSummary(
+                id=s.id,
+                title=s.title,
+                created_at=s.created_at,
+                updated_at=s.updated_at,
+                message_count=msg_count,
+            )
+        )
+
+    return SessionListResponse(sessions=session_summaries, total=total)
+
+
+@router.post("/sessions", response_model=CreateSessionResponse)
+async def create_session(
+    request: CreateSessionRequest = None,
+    db: AsyncSession = Depends(get_db),
+) -> CreateSessionResponse:
+    """Create a new chat session."""
+    session_service = SessionService(db)
+    title = request.title if request else None
+    session = await session_service.create_session(title=title)
+
+    return CreateSessionResponse(
+        id=session.id,
+        title=session.title,
+        created_at=session.created_at,
+    )
+
+
+@router.get("/sessions/{session_id}", response_model=SessionDetailResponse)
+async def get_session(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> SessionDetailResponse:
+    """Get a session with all its messages."""
+    session_service = SessionService(db)
+    session = await session_service.get_session(session_id)
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    messages = [
+        MessageResponse(
+            role=m.role,
+            content=m.content,
+            question_type=m.question_type,
+            created_at=m.created_at,
+        )
+        for m in session.messages
+    ]
+
+    return SessionDetailResponse(
+        id=session.id,
+        title=session.title,
+        created_at=session.created_at,
+        messages=messages,
+    )
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_session(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Delete a chat session and all its messages."""
+    session_service = SessionService(db)
+
+    # Also clear from LLM service memory
+    try:
+        llm_service = get_llm_service()
+        llm_service.delete_conversation(session_id)
+    except Exception:
+        pass  # Ignore if not in memory
+
+    deleted = await session_service.delete_session(session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return {"status": "success", "message": f"Session {session_id} deleted"}

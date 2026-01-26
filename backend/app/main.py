@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
+from app.core.database import init_db
 from app.api import api_router
 
 
@@ -12,6 +13,11 @@ async def lifespan(app: FastAPI):
     settings.filings_dir.mkdir(parents=True, exist_ok=True)
     settings.parsed_dir.mkdir(parents=True, exist_ok=True)
     settings.chroma_dir.mkdir(parents=True, exist_ok=True)
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+
+    # Initialize database
+    await init_db()
+
     yield
     # Shutdown: cleanup if needed
 

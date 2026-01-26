@@ -96,3 +96,53 @@ export async function deleteConversation(sessionId: string): Promise<{ status: s
 export async function checkChatHealth(): Promise<ChatHealthResponse> {
   return api.get<ChatHealthResponse>(`${API_PREFIX}/chat/health`);
 }
+
+// Session API
+export interface SessionSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface SessionListResponse {
+  sessions: SessionSummary[];
+  total: number;
+}
+
+export interface SessionMessage {
+  role: "user" | "assistant";
+  content: string;
+  question_type?: string | null;
+  created_at: string;
+}
+
+export interface SessionDetail {
+  id: string;
+  title: string;
+  created_at: string;
+  messages: SessionMessage[];
+}
+
+export interface CreateSessionResponse {
+  id: string;
+  title: string;
+  created_at: string;
+}
+
+export async function listSessions(limit: number = 50, offset: number = 0): Promise<SessionListResponse> {
+  return api.get<SessionListResponse>(`${API_PREFIX}/chat/sessions?limit=${limit}&offset=${offset}`);
+}
+
+export async function createSession(title?: string): Promise<CreateSessionResponse> {
+  return api.post<CreateSessionResponse>(`${API_PREFIX}/chat/sessions`, title ? { title } : {});
+}
+
+export async function getSession(sessionId: string): Promise<SessionDetail> {
+  return api.get<SessionDetail>(`${API_PREFIX}/chat/sessions/${sessionId}`);
+}
+
+export async function deleteSession(sessionId: string): Promise<{ status: string; message: string }> {
+  return api.delete<{ status: string; message: string }>(`${API_PREFIX}/chat/sessions/${sessionId}`);
+}
