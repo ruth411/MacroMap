@@ -263,14 +263,17 @@ export default function ChatPage() {
           </div>
         </header>
 
-        <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex overflow-hidden bg-zinc-100 dark:bg-zinc-950">
           {/* Main Chat Area */}
           <div className="flex-1 flex flex-col min-w-0 p-4 lg:p-6">
-            <Card className="flex-1 flex flex-col overflow-hidden">
-              <CardHeader className="border-b flex flex-row items-center justify-between py-3 px-4">
-                <CardTitle className="text-base">
-                  {sessions.find((s) => s.id === activeSessionId)?.title || "New Chat"}
-                </CardTitle>
+            <Card className="flex-1 flex flex-col overflow-hidden border-2 border-zinc-200 dark:border-zinc-800 shadow-lg">
+              <CardHeader className="border-b-2 border-zinc-200 dark:border-zinc-700 flex flex-row items-center justify-between py-4 px-5 bg-white dark:bg-zinc-900">
+                <div>
+                  <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">Current Conversation</p>
+                  <CardTitle className="text-lg font-semibold">
+                    {sessions.find((s) => s.id === activeSessionId)?.title || "New Chat"}
+                  </CardTitle>
+                </div>
                 {messages.length > 0 && (
                   <Button variant="outline" size="sm" onClick={handleClearChat}>
                     Clear Chat
