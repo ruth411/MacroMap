@@ -1,8 +1,8 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies for chromadb
+# Install system dependencies for chromadb and building packages
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -11,15 +11,22 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements first for caching
 COPY requirements.txt .
 
-# Install Python dependencies
+# Install CPU-only PyTorch FIRST (much smaller ~200MB vs 2GB for full torch)
+# This prevents sentence-transformers from installing the full GPU version
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY . .
 
+# Create data directory
+RUN mkdir -p /app/data
+
 # Railway sets PORT env variable
 ENV PORT=8000
 EXPOSE $PORT
 
-# Start command - use shell form to expand $PORT
+# Start command
 CMD uvicorn app.main:app --host 0.0.0.0 --port $PORT
