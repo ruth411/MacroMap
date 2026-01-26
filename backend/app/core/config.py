@@ -43,8 +43,8 @@ class Settings(BaseSettings):
     parsed_dir: Path = data_dir / "parsed"
     chroma_dir: Path = data_dir / "chroma"
 
-    # Database
-    database_url: str = "sqlite+aiosqlite:///./data/macromap.db"
+    # Database (use /tmp for Railway/containers, or set DATABASE_URL env var for PostgreSQL)
+    database_url: str = "sqlite+aiosqlite:////tmp/macromap.db"
 
     # SEC EDGAR
     sec_user_agent: str = "MacroMap research@example.com"
