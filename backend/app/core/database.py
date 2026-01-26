@@ -2,6 +2,7 @@
 Database Configuration
 
 Async SQLAlchemy setup for chat session persistence.
+Supports both SQLite (local) and PostgreSQL (production).
 """
 
 from pathlib import Path
@@ -15,12 +16,25 @@ class Base(DeclarativeBase):
     pass
 
 
+def _get_database_url() -> str:
+    """Get the database URL, converting to async driver if needed."""
+    db_url = settings.database_url
+
+    # Convert standard PostgreSQL URL to async version
+    if db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif db_url.startswith("postgres://"):
+        # Railway uses postgres:// which is deprecated but still used
+        db_url = db_url.replace("postgres://", "postgresql+asyncpg://", 1)
+
+    return db_url
+
+
 def _ensure_db_directory():
     """Ensure the database directory exists for SQLite."""
     db_url = settings.database_url
     if "sqlite" in db_url:
         # Extract path from sqlite URL (sqlite+aiosqlite:////path/to/db.db)
-        # The path starts after the third or fourth slash
         if "////" in db_url:
             # Absolute path: sqlite+aiosqlite:////tmp/db.db
             db_path = db_url.split("////")[1]
@@ -34,12 +48,15 @@ def _ensure_db_directory():
         path.parent.mkdir(parents=True, exist_ok=True)
 
 
-# Ensure directory exists before creating engine
+# Ensure directory exists for SQLite
 _ensure_db_directory()
+
+# Get the properly formatted database URL
+DATABASE_URL = _get_database_url()
 
 # Create async engine
 engine = create_async_engine(
-    settings.database_url,
+    DATABASE_URL,
     echo=settings.debug,
 )
 

@@ -43,7 +43,8 @@ class Settings(BaseSettings):
     parsed_dir: Path = data_dir / "parsed"
     chroma_dir: Path = data_dir / "chroma"
 
-    # Database (use /tmp for Railway/containers, or set DATABASE_URL env var for PostgreSQL)
+    # Database: Set DATABASE_URL env var for PostgreSQL (Railway provides this)
+    # Falls back to SQLite in /tmp for containers without PostgreSQL
     database_url: str = "sqlite+aiosqlite:////tmp/macromap.db"
 
     # SEC EDGAR
