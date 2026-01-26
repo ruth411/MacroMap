@@ -6,7 +6,7 @@ SQLAlchemy models for chat session persistence.
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, DateTime, ForeignKey, Integer
+from sqlalchemy import String, Text, DateTime, ForeignKey, Integer, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -17,6 +17,12 @@ class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
     id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    user_id: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     title: Mapped[str] = mapped_column(String(100), default="New Chat")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -27,6 +33,10 @@ class ChatSession(Base):
         back_populates="session",
         cascade="all, delete-orphan",
         order_by="ChatMessage.created_at",
+    )
+
+    __table_args__ = (
+        Index("idx_sessions_user_id", "user_id"),
     )
 
 

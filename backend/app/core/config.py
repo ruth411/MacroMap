@@ -63,6 +63,15 @@ class Settings(BaseSettings):
     max_tokens: int = 2048
     temperature: float = 0.7
 
+    # Authentication
+    jwt_secret_key: str = "your-secret-key-change-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
+
+    # Google OAuth
+    google_client_id: str = ""
+    google_client_secret: str = ""
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

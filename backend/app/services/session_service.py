@@ -7,7 +7,7 @@ CRUD operations for chat sessions and messages.
 import uuid
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -35,10 +35,16 @@ class SessionService:
             title = title[:47] + "..."
         return title if title else "New Chat"
 
-    async def create_session(self, session_id: Optional[str] = None, title: Optional[str] = None) -> ChatSession:
+    async def create_session(
+        self,
+        session_id: Optional[str] = None,
+        title: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> ChatSession:
         """Create a new chat session."""
         session = ChatSession(
             id=session_id or self.generate_session_id(),
+            user_id=user_id,
             title=title or "New Chat",
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
@@ -48,31 +54,61 @@ class SessionService:
         await self.db.refresh(session)
         return session
 
-    async def get_session(self, session_id: str) -> Optional[ChatSession]:
-        """Get a session by ID."""
-        result = await self.db.execute(
+    async def get_session(
+        self,
+        session_id: str,
+        user_id: Optional[str] = None,
+    ) -> Optional[ChatSession]:
+        """Get a session by ID, optionally verifying ownership."""
+        query = (
             select(ChatSession)
             .options(selectinload(ChatSession.messages))
             .where(ChatSession.id == session_id)
         )
+
+        # If user_id provided, verify ownership
+        if user_id is not None:
+            query = query.where(ChatSession.user_id == user_id)
+
+        result = await self.db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_or_create_session(self, session_id: str) -> ChatSession:
+    async def get_or_create_session(
+        self,
+        session_id: str,
+        user_id: Optional[str] = None,
+    ) -> ChatSession:
         """Get existing session or create new one."""
-        session = await self.get_session(session_id)
+        session = await self.get_session(session_id, user_id=user_id)
         if not session:
-            session = await self.create_session(session_id=session_id)
+            session = await self.create_session(session_id=session_id, user_id=user_id)
         return session
 
-    async def list_sessions(self, limit: int = 50, offset: int = 0) -> tuple[list[ChatSession], int]:
-        """List all sessions with pagination."""
+    async def list_sessions(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[ChatSession], int]:
+        """List sessions with pagination, filtered by user_id."""
+        # Build filter condition
+        if user_id is not None:
+            filter_condition = ChatSession.user_id == user_id
+        else:
+            # For backwards compatibility, if no user_id, return nothing
+            # (guest users don't have persistent sessions)
+            return [], 0
+
         # Get total count
-        count_result = await self.db.execute(select(func.count(ChatSession.id)))
+        count_result = await self.db.execute(
+            select(func.count(ChatSession.id)).where(filter_condition)
+        )
         total = count_result.scalar() or 0
 
         # Get sessions ordered by updated_at desc
         result = await self.db.execute(
             select(ChatSession)
+            .where(filter_condition)
             .order_by(ChatSession.updated_at.desc())
             .limit(limit)
             .offset(offset)
@@ -81,17 +117,31 @@ class SessionService:
 
         return sessions, total
 
-    async def delete_session(self, session_id: str) -> bool:
+    async def delete_session(
+        self,
+        session_id: str,
+        user_id: Optional[str] = None,
+    ) -> bool:
         """Delete a session and all its messages."""
+        # Build delete condition
+        conditions = [ChatSession.id == session_id]
+        if user_id is not None:
+            conditions.append(ChatSession.user_id == user_id)
+
         result = await self.db.execute(
-            delete(ChatSession).where(ChatSession.id == session_id)
+            delete(ChatSession).where(and_(*conditions))
         )
         await self.db.commit()
         return result.rowcount > 0
 
-    async def update_session_title(self, session_id: str, title: str) -> Optional[ChatSession]:
+    async def update_session_title(
+        self,
+        session_id: str,
+        title: str,
+        user_id: Optional[str] = None,
+    ) -> Optional[ChatSession]:
         """Update session title."""
-        session = await self.get_session(session_id)
+        session = await self.get_session(session_id, user_id=user_id)
         if session:
             session.title = title
             session.updated_at = datetime.utcnow()
@@ -105,10 +155,11 @@ class SessionService:
         role: str,
         content: str,
         question_type: Optional[str] = None,
+        user_id: Optional[str] = None,
     ) -> ChatMessage:
         """Add a message to a session."""
         # Ensure session exists
-        session = await self.get_or_create_session(session_id)
+        session = await self.get_or_create_session(session_id, user_id=user_id)
 
         # If this is the first user message, update title
         if role == "user":

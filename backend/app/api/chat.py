@@ -5,6 +5,7 @@ Endpoints for chat interactions with the financial assistant.
 """
 
 import logging
+from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,11 +22,13 @@ from app.models.chat import (
     CreateSessionRequest,
     CreateSessionResponse,
 )
+from app.models.user import User
 from app.services.llm import LLMService, FinancialPrompts
 from app.services.llm.service import get_llm_service
 from app.services.retrieval.service import get_retrieval_service
 from app.services.retrieval.models import RetrievalQuery
 from app.core.database import get_db
+from app.core.security import get_optional_user, get_current_user
 from app.services.session_service import SessionService
 
 logger = logging.getLogger(__name__)
@@ -34,31 +37,41 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/", response_model=ChatResponse)
-async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+) -> ChatResponse:
     """
     Send a message to the financial assistant.
 
-    The assistant will analyze your question and provide an educational,
-    accurate response about financial concepts. When RAG is enabled,
-    responses are grounded in SEC filings with citations.
+    For authenticated users, messages are persisted.
+    For guests, messages are not saved to database.
     """
     try:
         llm_service = get_llm_service()
         session_service = SessionService(db)
 
+        user_id = current_user.id if current_user else None
+        is_guest = user_id is None
+
         # Check if this is the first message (for title generation later)
-        existing_messages = await session_service.get_messages(request.session_id)
-        is_first_message = len([m for m in existing_messages if m.role == "user"]) == 0
+        is_first_message = False
+        if not is_guest:
+            existing_messages = await session_service.get_messages(request.session_id)
+            is_first_message = len([m for m in existing_messages if m.role == "user"]) == 0
 
         # Detect question type for response metadata
         question_type = FinancialPrompts.detect_question_type(request.message)
 
-        # Persist user message
-        await session_service.add_message(
-            session_id=request.session_id,
-            role="user",
-            content=request.message,
-        )
+        # Persist user message (only for authenticated users)
+        if not is_guest:
+            await session_service.add_message(
+                session_id=request.session_id,
+                role="user",
+                content=request.message,
+                user_id=user_id,
+            )
 
         # RAG retrieval
         context = None
@@ -109,32 +122,36 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> Chat
                 retrieval_result.citations
             )
 
-        # Persist assistant response
-        await session_service.add_message(
-            session_id=request.session_id,
-            role="assistant",
-            content=response,
-            question_type=question_type,
-        )
+        # Persist assistant response (only for authenticated users)
+        if not is_guest:
+            await session_service.add_message(
+                session_id=request.session_id,
+                role="assistant",
+                content=response,
+                question_type=question_type,
+                user_id=user_id,
+            )
 
-        # Generate summarized title for first message
-        if is_first_message:
-            try:
-                title_prompt = f"Generate a very short title (3-5 words max) summarizing this question. Only respond with the title, nothing else.\n\nQuestion: {request.message}"
-                title = await llm_service.simple_chat(
-                    message=title_prompt,
-                    session_id=f"title-gen-{request.session_id}",
-                )
-                # Clean up the title
-                title = title.strip().strip('"').strip("'")
-                if len(title) > 50:
-                    title = title[:47] + "..."
-                if title:
-                    await session_service.update_session_title(request.session_id, title)
-                # Clean up the title generation session
-                llm_service.delete_conversation(f"title-gen-{request.session_id}")
-            except Exception as e:
-                logger.warning(f"Failed to generate title: {e}")
+            # Generate summarized title for first message
+            if is_first_message:
+                try:
+                    title_prompt = f"Generate a very short title (3-5 words max) summarizing this question. Only respond with the title, nothing else.\n\nQuestion: {request.message}"
+                    title = await llm_service.simple_chat(
+                        message=title_prompt,
+                        session_id=f"title-gen-{request.session_id}",
+                    )
+                    # Clean up the title
+                    title = title.strip().strip('"').strip("'")
+                    if len(title) > 50:
+                        title = title[:47] + "..."
+                    if title:
+                        await session_service.update_session_title(
+                            request.session_id, title, user_id=user_id
+                        )
+                    # Clean up the title generation session
+                    llm_service.delete_conversation(f"title-gen-{request.session_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to generate title: {e}")
 
         return ChatResponse(
             response=response,
@@ -196,16 +213,21 @@ async def chat_health() -> HealthResponse:
         )
 
 
-# Session endpoints
+# Session endpoints (require authentication)
 @router.get("/sessions", response_model=SessionListResponse)
 async def list_sessions(
     limit: int = 50,
     offset: int = 0,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SessionListResponse:
-    """List all chat sessions."""
+    """List all chat sessions for the authenticated user."""
     session_service = SessionService(db)
-    sessions, total = await session_service.list_sessions(limit=limit, offset=offset)
+    sessions, total = await session_service.list_sessions(
+        user_id=current_user.id,
+        limit=limit,
+        offset=offset,
+    )
 
     session_summaries = []
     for s in sessions:
@@ -227,11 +249,15 @@ async def list_sessions(
 async def create_session(
     request: CreateSessionRequest = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> CreateSessionResponse:
-    """Create a new chat session."""
+    """Create a new chat session for the authenticated user."""
     session_service = SessionService(db)
     title = request.title if request else None
-    session = await session_service.create_session(title=title)
+    session = await session_service.create_session(
+        title=title,
+        user_id=current_user.id,
+    )
 
     return CreateSessionResponse(
         id=session.id,
@@ -244,10 +270,11 @@ async def create_session(
 async def get_session(
     session_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> SessionDetailResponse:
-    """Get a session with all its messages."""
+    """Get a session with all its messages (user must own the session)."""
     session_service = SessionService(db)
-    session = await session_service.get_session(session_id)
+    session = await session_service.get_session(session_id, user_id=current_user.id)
 
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -274,8 +301,9 @@ async def get_session(
 async def delete_session(
     session_id: str,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Delete a chat session and all its messages."""
+    """Delete a chat session (user must own the session)."""
     session_service = SessionService(db)
 
     # Also clear from LLM service memory
@@ -285,7 +313,7 @@ async def delete_session(
     except Exception:
         pass  # Ignore if not in memory
 
-    deleted = await session_service.delete_session(session_id)
+    deleted = await session_service.delete_session(session_id, user_id=current_user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Session not found")
 

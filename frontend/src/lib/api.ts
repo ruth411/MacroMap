@@ -5,8 +5,30 @@ interface ApiError {
   detail: string;
 }
 
+function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("auth_token");
+}
+
+function getAuthHeaders(): HeadersInit {
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+  };
+  const token = getAuthToken();
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
+    // Handle 401 - clear token and redirect to login
+    if (response.status === 401) {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      // Don't redirect here, let the component handle it
+    }
     const error: ApiError = await response.json().catch(() => ({
       detail: "An unknown error occurred",
     }));
@@ -19,9 +41,7 @@ export const api = {
   async get<T>(endpoint: string): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getAuthHeaders(),
     });
     return handleResponse<T>(response);
   },
@@ -29,9 +49,7 @@ export const api = {
   async post<T>(endpoint: string, data?: unknown): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getAuthHeaders(),
       body: data ? JSON.stringify(data) : undefined,
     });
     return handleResponse<T>(response);
@@ -40,9 +58,7 @@ export const api = {
   async delete<T>(endpoint: string): Promise<T> {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getAuthHeaders(),
     });
     return handleResponse<T>(response);
   },
