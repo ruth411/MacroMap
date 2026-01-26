@@ -46,6 +46,10 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> Chat
         llm_service = get_llm_service()
         session_service = SessionService(db)
 
+        # Check if this is the first message (for title generation later)
+        existing_messages = await session_service.get_messages(request.session_id)
+        is_first_message = len([m for m in existing_messages if m.role == "user"]) == 0
+
         # Detect question type for response metadata
         question_type = FinancialPrompts.detect_question_type(request.message)
 
@@ -112,6 +116,25 @@ async def chat(request: ChatRequest, db: AsyncSession = Depends(get_db)) -> Chat
             content=response,
             question_type=question_type,
         )
+
+        # Generate summarized title for first message
+        if is_first_message:
+            try:
+                title_prompt = f"Generate a very short title (3-5 words max) summarizing this question. Only respond with the title, nothing else.\n\nQuestion: {request.message}"
+                title = await llm_service.simple_chat(
+                    message=title_prompt,
+                    session_id=f"title-gen-{request.session_id}",
+                )
+                # Clean up the title
+                title = title.strip().strip('"').strip("'")
+                if len(title) > 50:
+                    title = title[:47] + "..."
+                if title:
+                    await session_service.update_session_title(request.session_id, title)
+                # Clean up the title generation session
+                llm_service.delete_conversation(f"title-gen-{request.session_id}")
+            except Exception as e:
+                logger.warning(f"Failed to generate title: {e}")
 
         return ChatResponse(
             response=response,
