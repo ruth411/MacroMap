@@ -207,7 +207,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex">
+    <div className="h-screen bg-zinc-50 dark:bg-zinc-950 flex overflow-hidden">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div
@@ -216,9 +216,9 @@ export default function ChatPage() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Desktop: static, Mobile: fixed overlay */}
       <div
-        className={`fixed lg:static inset-y-0 left-0 z-50 w-72 transform transition-transform lg:transform-none ${
+        className={`fixed lg:relative inset-y-0 left-0 z-50 w-80 shrink-0 transform transition-transform lg:transform-none ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
@@ -233,7 +233,7 @@ export default function ChatPage() {
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="border-b border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
           <div className="px-4 lg:px-6 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
