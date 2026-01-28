@@ -58,7 +58,7 @@ async def health_check():
     return {
         "status": "healthy",
         "app": settings.app_name,
-        "version": "0.1.4",  # Force rebuild with bytecode cleanup
+        "version": "0.1.5",  # Test passlib directly
         "llm_provider": settings.llm_provider,
     }
 

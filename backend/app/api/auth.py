@@ -178,41 +178,46 @@ async def debug_hash_test():
     """Debug endpoint to test password hashing."""
     import hashlib
     import base64
-    from app.services.auth_service import _prepare_password, AuthService, pwd_context
+    from passlib.context import CryptContext
 
-    test_password = "a" * 100  # 100 character password
-    result = {"original_length": len(test_password)}
+    # Create a fresh CryptContext for testing
+    test_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-    # Test 1: Direct SHA-256 + base64
+    result = {}
+
+    # Test 1: Simple 10-char password
     try:
-        sha_hash = hashlib.sha256(test_password.encode('utf-8')).digest()
-        direct_prepared = base64.b64encode(sha_hash).decode('ascii')
-        result["direct_sha256_base64"] = direct_prepared
-        result["direct_length"] = len(direct_prepared)
+        simple_hash = test_ctx.hash("simple1234")
+        result["simple_10char"] = "SUCCESS"
     except Exception as e:
-        result["direct_error"] = str(e)
+        result["simple_10char_error"] = str(e)
 
-    # Test 2: Our _prepare_password function
+    # Test 2: 44-char password (like our base64)
     try:
-        prepared = _prepare_password(test_password)
-        result["prepared_value"] = prepared
-        result["prepared_length"] = len(prepared)
+        b64_test = "KBZZeIjkoNOja4K4MxarMmgOuPAPjNO5BNaBJG0oWg4="
+        hash_44 = test_ctx.hash(b64_test)
+        result["base64_44char"] = "SUCCESS"
     except Exception as e:
-        result["prepare_error"] = str(e)
+        result["base64_44char_error"] = str(e)
 
-    # Test 3: Hash the prepared value directly
+    # Test 3: 72-char password (exact limit)
     try:
-        if "prepared_value" in result:
-            hashed = pwd_context.hash(result["prepared_value"])
-            result["direct_hash_success"] = True
+        pw_72 = "a" * 72
+        hash_72 = test_ctx.hash(pw_72)
+        result["exact_72char"] = "SUCCESS"
     except Exception as e:
-        result["direct_hash_error"] = str(e)
+        result["exact_72char_error"] = str(e)
 
-    # Test 4: Full hash_password function
+    # Test 4: 73-char password (over limit)
     try:
-        hashed = AuthService.hash_password(test_password)
-        result["hash_password_success"] = True
+        pw_73 = "a" * 73
+        hash_73 = test_ctx.hash(pw_73)
+        result["over_73char"] = "SUCCESS"
     except Exception as e:
-        result["hash_password_error"] = str(e)
+        result["over_73char_error"] = str(e)
+
+    # Test 5: Check passlib version
+    import passlib
+    result["passlib_version"] = passlib.__version__
 
     return result
