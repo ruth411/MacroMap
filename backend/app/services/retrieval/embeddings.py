@@ -14,12 +14,12 @@ class EmbeddingProvider:
     """
     OpenAI embedding provider.
 
-    Uses text-embedding-3-small for cost efficiency and good performance.
+    Uses text-embedding-3-large for highest quality retrieval.
     Supports batching for efficient bulk embedding.
     """
 
-    MODEL = "text-embedding-3-small"
-    DIMENSIONS = 1536
+    MODEL = "text-embedding-3-large"
+    DIMENSIONS = 3072  # Larger dimensions for better quality
     MAX_BATCH_SIZE = 2048  # OpenAI limit
 
     def __init__(self, api_key: Optional[str] = None):

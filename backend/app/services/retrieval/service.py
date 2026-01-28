@@ -7,6 +7,8 @@ from app.core.config import settings
 from .embeddings import EmbeddingProvider, get_embedding_provider
 from .vector_store import VectorStore, get_vector_store
 from .reranker import BaseReranker, get_reranker
+from .query_expansion import QueryExpander, get_query_expander
+from .hybrid_search import HybridSearcher, get_hybrid_searcher
 from .models import RetrievalQuery, RetrievalResult, Citation
 
 if TYPE_CHECKING:
@@ -17,9 +19,11 @@ logger = logging.getLogger(__name__)
 
 class RetrievalService:
     """
-    Main RAG retrieval service with reranking support.
+    Main RAG retrieval service with advanced features.
 
     Coordinates:
+    - Query expansion (LLM-powered term expansion)
+    - Hybrid search (vector + BM25 keyword search)
     - Embedding generation
     - Vector store queries
     - Reranking for improved relevance
@@ -36,9 +40,22 @@ class RetrievalService:
         embedding_provider: Optional[EmbeddingProvider] = None,
         vector_store: Optional[VectorStore] = None,
         reranker: Optional[BaseReranker] = None,
+        query_expander: Optional[QueryExpander] = None,
+        hybrid_searcher: Optional[HybridSearcher] = None,
+        enable_query_expansion: bool = True,
+        enable_hybrid_search: bool = True,
     ):
         self.embeddings = embedding_provider or get_embedding_provider()
         self.vector_store = vector_store or get_vector_store()
+
+        # Query expansion
+        self.query_expander = query_expander or get_query_expander()
+        self.query_expansion_enabled = enable_query_expansion
+
+        # Hybrid search (vector + BM25)
+        self.hybrid_searcher = hybrid_searcher or get_hybrid_searcher()
+        self.hybrid_search_enabled = enable_hybrid_search
+        self._bm25_indexed = False
 
         # Initialize reranker based on settings
         if settings.reranker_enabled:
@@ -52,6 +69,13 @@ class RetrievalService:
             self.reranker = None
             self.reranking_enabled = False
             logger.info("Reranking disabled")
+
+        logger.info(
+            f"RetrievalService initialized: "
+            f"query_expansion={self.query_expansion_enabled}, "
+            f"hybrid_search={self.hybrid_search_enabled}, "
+            f"reranking={self.reranking_enabled}"
+        )
 
     async def index_chunks(self, chunks: list["Chunk"]) -> int:
         """
@@ -94,13 +118,16 @@ class RetrievalService:
 
     async def retrieve(self, query: RetrievalQuery) -> RetrievalResult:
         """
-        Retrieve relevant chunks for a query with optional reranking.
+        Retrieve relevant chunks for a query with advanced retrieval pipeline.
 
         The retrieval pipeline:
-        1. Embed the query
-        2. Fetch initial candidates from vector store (more than needed)
-        3. Rerank candidates using cross-encoder (if enabled)
-        4. Return top_k most relevant results
+        1. Expand query with related terms (if enabled)
+        2. Embed the expanded query
+        3. Vector search for semantic matches
+        4. BM25 keyword search (if enabled)
+        5. Merge results using Reciprocal Rank Fusion
+        6. Rerank candidates using cross-encoder (if enabled)
+        7. Return top_k most relevant results
 
         Args:
             query: RetrievalQuery with query text and filters
@@ -108,65 +135,98 @@ class RetrievalService:
         Returns:
             RetrievalResult with chunks, citations, and formatted context
         """
+        original_query = query.query
+
+        # Step 1: Query expansion
+        if self.query_expansion_enabled:
+            expanded_query = await self.query_expander.expand(query.query)
+            logger.debug(f"Query expanded: '{query.query}' -> '{expanded_query}'")
+        else:
+            expanded_query = query.query
+
         # Build metadata filter
         where_filter = self._build_where_filter(query)
 
-        # Embed query
-        query_embedding = await self.embeddings.embed_text(query.query)
+        # Step 2: Embed expanded query
+        query_embedding = await self.embeddings.embed_text(expanded_query)
 
         # Determine how many results to fetch initially
-        # If reranking is enabled, fetch more candidates for better reranking results
-        if self.reranking_enabled:
-            initial_k = max(query.top_k, settings.retrieval_initial_k)
+        # Fetch more if reranking or hybrid search is enabled
+        if self.reranking_enabled or self.hybrid_search_enabled:
+            initial_k = max(query.top_k * 3, settings.retrieval_initial_k)
         else:
             initial_k = query.top_k
 
-        # Query vector store for initial candidates
-        results = self.vector_store.query(
+        # Step 3: Vector search
+        vector_results = self.vector_store.query(
             query_embedding=query_embedding,
             n_results=initial_k,
             where=where_filter,
         )
 
-        # Build initial chunk list
-        initial_chunks = []
-
+        # Build vector chunk list
+        vector_chunks = []
         for doc_id, doc, meta, distance in zip(
-            results["ids"],
-            results["documents"],
-            results["metadatas"],
-            results["distances"],
+            vector_results["ids"],
+            vector_results["documents"],
+            vector_results["metadatas"],
+            vector_results["distances"],
         ):
-            # Convert distance to similarity score (cosine: lower distance is better)
-            score = 1 - distance
-
-            initial_chunks.append({
+            score = 1 - distance  # Convert distance to similarity
+            vector_chunks.append({
                 "id": doc_id,
                 "text": doc,
                 "metadata": meta,
                 "score": score,
             })
 
-        # Apply reranking if enabled
-        if self.reranking_enabled and self.reranker and len(initial_chunks) > 1:
-            logger.debug(f"Reranking {len(initial_chunks)} chunks...")
+        # Step 4 & 5: Hybrid search with BM25 (if enabled)
+        if self.hybrid_search_enabled and vector_chunks:
+            # Build BM25 index if not already done
+            if not self._bm25_indexed:
+                self._build_bm25_index()
+
+            # Get BM25 results
+            bm25_chunks = self.hybrid_searcher.bm25_index.search(
+                original_query,  # Use original query for keyword matching
+                top_k=initial_k,
+            )
+
+            # Merge using RRF
+            if bm25_chunks:
+                merged_chunks = self.hybrid_searcher.merge_results(
+                    vector_results=vector_chunks,
+                    bm25_results=bm25_chunks,
+                    top_k=initial_k,
+                )
+                logger.debug(
+                    f"Hybrid search: {len(vector_chunks)} vector + "
+                    f"{len(bm25_chunks)} BM25 -> {len(merged_chunks)} merged"
+                )
+            else:
+                merged_chunks = vector_chunks
+        else:
+            merged_chunks = vector_chunks
+
+        # Step 6: Apply reranking if enabled
+        if self.reranking_enabled and self.reranker and len(merged_chunks) > 1:
+            logger.debug(f"Reranking {len(merged_chunks)} chunks...")
             reranked_chunks = await self.reranker.rerank(
-                query=query.query,
-                documents=initial_chunks,
+                query=original_query,  # Use original query for reranking
+                documents=merged_chunks,
                 top_k=query.top_k,
             )
             chunks = reranked_chunks
             logger.debug(f"Reranking complete, returning top {len(chunks)} results")
         else:
-            # No reranking, just take top_k
-            chunks = initial_chunks[:query.top_k]
+            chunks = merged_chunks[:query.top_k]
 
         # Build citations from final chunks
         citations = []
         for chunk in chunks:
             meta = chunk["metadata"]
-            # Use rerank_score if available, otherwise use original score
-            score = chunk.get("rerank_score", chunk.get("score", 0))
+            # Use best available score
+            score = chunk.get("rerank_score", chunk.get("hybrid_score", chunk.get("score", 0)))
 
             citations.append(Citation(
                 chunk_id=chunk["id"],
@@ -189,6 +249,34 @@ class RetrievalService:
             formatted_context=formatted_context,
             total_tokens_estimate=token_estimate,
         )
+
+    def _build_bm25_index(self) -> None:
+        """Build BM25 index from all documents in vector store."""
+        try:
+            # Get all documents from vector store
+            all_docs = self.vector_store._collection.get(
+                include=["documents", "metadatas"]
+            )
+
+            if all_docs["ids"]:
+                documents = []
+                for doc_id, doc, meta in zip(
+                    all_docs["ids"],
+                    all_docs["documents"],
+                    all_docs["metadatas"],
+                ):
+                    documents.append({
+                        "id": doc_id,
+                        "text": doc,
+                        "metadata": meta,
+                    })
+
+                self.hybrid_searcher.index_documents(documents)
+                self._bm25_indexed = True
+                logger.info(f"BM25 index built with {len(documents)} documents")
+        except Exception as e:
+            logger.warning(f"Failed to build BM25 index: {e}")
+            self._bm25_indexed = False
 
     def _build_where_filter(self, query: RetrievalQuery) -> Optional[dict]:
         """Build ChromaDB where filter from query parameters."""
@@ -274,6 +362,13 @@ class RetrievalService:
             "embedding_model": self.embeddings.model,
             "vector_store": store_stats,
             "reranker": reranker_info,
+            "query_expansion": {
+                "enabled": self.query_expansion_enabled,
+            },
+            "hybrid_search": {
+                "enabled": self.hybrid_search_enabled,
+                "bm25_indexed": self._bm25_indexed,
+            },
         }
 
 

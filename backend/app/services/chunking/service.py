@@ -20,6 +20,7 @@ class ChunkingService:
     Features:
     - Respects section boundaries (won't split across items)
     - Configurable chunk size and overlap
+    - Contextual enrichment (adds section/company context to each chunk)
     - Preserves metadata for each chunk
     - Generates unique chunk IDs
     """
@@ -27,10 +28,13 @@ class ChunkingService:
     def __init__(
         self,
         chunk_size: Optional[int] = None,
-        chunk_overlap: Optional[int] = None
+        chunk_overlap: Optional[int] = None,
+        enable_contextual_enrichment: bool = True,
     ):
-        self.chunk_size = chunk_size or settings.chunk_size  # 1000
-        self.chunk_overlap = chunk_overlap or settings.chunk_overlap  # 200
+        # Reduced chunk size for better precision (was 1000)
+        self.chunk_size = chunk_size or settings.chunk_size
+        self.chunk_overlap = chunk_overlap or settings.chunk_overlap
+        self.enable_contextual_enrichment = enable_contextual_enrichment
 
     def chunk_filing(self, parsed_filing: "ParsedFiling") -> list[Chunk]:
         """
@@ -83,6 +87,14 @@ class ChunkingService:
         total_chunks = len(text_chunks)
 
         for i, chunk_text in enumerate(text_chunks):
+            # Apply contextual enrichment for better embeddings
+            if self.enable_contextual_enrichment:
+                enriched_text = self._enrich_chunk(
+                    chunk_text, metadata, section
+                )
+            else:
+                enriched_text = chunk_text
+
             chunk_metadata = ChunkMetadata(
                 ticker=metadata.ticker,
                 company_name=metadata.company_name,
@@ -103,11 +115,33 @@ class ChunkingService:
 
             chunks.append(Chunk(
                 id=chunk_id,
-                text=chunk_text,
+                text=enriched_text,
                 metadata=chunk_metadata,
             ))
 
         return chunks
+
+    def _enrich_chunk(
+        self,
+        chunk_text: str,
+        metadata,
+        section: "Section",
+    ) -> str:
+        """
+        Add contextual prefix to chunk for better embeddings.
+
+        This helps the embedding model understand the context of the chunk,
+        improving retrieval accuracy especially for ambiguous terms.
+        """
+        filing_year = metadata.filing_date.year if hasattr(metadata.filing_date, 'year') else str(metadata.filing_date)[:4]
+
+        context_prefix = (
+            f"[{metadata.company_name} ({metadata.ticker}) | "
+            f"{metadata.filing_type.value} {filing_year} | "
+            f"{section.title}]\n\n"
+        )
+
+        return context_prefix + chunk_text
 
     def _split_text(self, text: str) -> list[str]:
         """

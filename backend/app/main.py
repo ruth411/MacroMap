@@ -58,7 +58,7 @@ async def health_check():
     return {
         "status": "healthy",
         "app": settings.app_name,
-        "version": "0.1.7",  # Pin bcrypt<5.0.0 for passlib compat
+        "version": "0.2.0",  # RAG improvements: query expansion, hybrid search, better embeddings
         "llm_provider": settings.llm_provider,
     }
 

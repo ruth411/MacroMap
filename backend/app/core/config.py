@@ -65,16 +65,24 @@ class Settings(BaseSettings):
     # ChromaDB
     chroma_collection_name: str = "sec_filings"
 
-    # Chunking
-    chunk_size: int = 1000
-    chunk_overlap: int = 200
+    # Chunking - smaller chunks for better precision
+    chunk_size: int = 512
+    chunk_overlap: int = 100
 
     # RAG Reranking Settings
     reranker_enabled: bool = True
     reranker_type: str = "cross-encoder"  # "cross-encoder", "cohere", "none"
     reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     reranker_top_k: int = 5  # Final number of results after reranking
-    retrieval_initial_k: int = 15  # Initial retrieval before reranking (fetch more, then rerank)
+    retrieval_initial_k: int = 20  # Initial retrieval before reranking (increased for hybrid)
+
+    # RAG Query Expansion Settings
+    query_expansion_enabled: bool = True  # Use LLM to expand queries with related terms
+
+    # RAG Hybrid Search Settings
+    hybrid_search_enabled: bool = True  # Combine vector + BM25 keyword search
+    hybrid_vector_weight: float = 0.7  # Weight for vector search results
+    hybrid_bm25_weight: float = 0.3  # Weight for BM25 results
 
     # Chat Settings
     max_history_length: int = 10
