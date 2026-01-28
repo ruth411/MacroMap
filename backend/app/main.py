@@ -58,7 +58,7 @@ async def health_check():
     return {
         "status": "healthy",
         "app": settings.app_name,
-        "version": "0.1.5",  # Test passlib directly
+        "version": "0.1.6",  # Add explicit bcrypt + direct test
         "llm_provider": settings.llm_provider,
     }
 

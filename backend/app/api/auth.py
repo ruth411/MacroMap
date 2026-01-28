@@ -176,48 +176,41 @@ async def get_me(
 @router.get("/debug/hash-test")
 async def debug_hash_test():
     """Debug endpoint to test password hashing."""
-    import hashlib
-    import base64
-    from passlib.context import CryptContext
-
-    # Create a fresh CryptContext for testing
-    test_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
     result = {}
 
-    # Test 1: Simple 10-char password
+    # Check bcrypt directly
     try:
+        import bcrypt
+        result["bcrypt_version"] = bcrypt.__version__
+        # Test bcrypt directly
+        test_hash = bcrypt.hashpw(b"test123", bcrypt.gensalt())
+        result["bcrypt_direct"] = "SUCCESS"
+    except Exception as e:
+        result["bcrypt_error"] = f"{type(e).__name__}: {str(e)}"
+
+    # Check passlib
+    try:
+        import passlib
+        result["passlib_version"] = passlib.__version__
+    except Exception as e:
+        result["passlib_import_error"] = str(e)
+
+    # Test passlib with bcrypt
+    try:
+        from passlib.context import CryptContext
+        test_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
         simple_hash = test_ctx.hash("simple1234")
-        result["simple_10char"] = "SUCCESS"
+        result["passlib_bcrypt"] = "SUCCESS"
     except Exception as e:
-        result["simple_10char_error"] = str(e)
+        result["passlib_bcrypt_error"] = f"{type(e).__name__}: {str(e)}"
 
-    # Test 2: 44-char password (like our base64)
+    # Test passlib with sha256_crypt (fallback option)
     try:
-        b64_test = "KBZZeIjkoNOja4K4MxarMmgOuPAPjNO5BNaBJG0oWg4="
-        hash_44 = test_ctx.hash(b64_test)
-        result["base64_44char"] = "SUCCESS"
+        from passlib.context import CryptContext
+        sha_ctx = CryptContext(schemes=["sha256_crypt"], deprecated="auto")
+        sha_hash = sha_ctx.hash("simple1234")
+        result["passlib_sha256"] = "SUCCESS"
     except Exception as e:
-        result["base64_44char_error"] = str(e)
-
-    # Test 3: 72-char password (exact limit)
-    try:
-        pw_72 = "a" * 72
-        hash_72 = test_ctx.hash(pw_72)
-        result["exact_72char"] = "SUCCESS"
-    except Exception as e:
-        result["exact_72char_error"] = str(e)
-
-    # Test 4: 73-char password (over limit)
-    try:
-        pw_73 = "a" * 73
-        hash_73 = test_ctx.hash(pw_73)
-        result["over_73char"] = "SUCCESS"
-    except Exception as e:
-        result["over_73char_error"] = str(e)
-
-    # Test 5: Check passlib version
-    import passlib
-    result["passlib_version"] = passlib.__version__
+        result["passlib_sha256_error"] = str(e)
 
     return result
