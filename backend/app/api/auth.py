@@ -171,3 +171,25 @@ async def get_me(
         email=current_user.email,
         name=current_user.name,
     )
+
+
+@router.get("/debug/hash-test")
+async def debug_hash_test():
+    """Debug endpoint to test password hashing."""
+    from app.services.auth_service import _prepare_password, AuthService
+    test_password = "a" * 100  # 100 character password
+    try:
+        prepared = _prepare_password(test_password)
+        hashed = AuthService.hash_password(test_password)
+        return {
+            "original_length": len(test_password),
+            "prepared_length": len(prepared),
+            "prepared_value": prepared[:20] + "...",
+            "hash_success": True,
+            "hash_prefix": hashed[:20] + "...",
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "error_type": type(e).__name__,
+        }

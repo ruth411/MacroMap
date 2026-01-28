@@ -58,7 +58,7 @@ async def health_check():
     return {
         "status": "healthy",
         "app": settings.app_name,
-        "version": "0.1.2",  # SHA-256 pre-hashing for passwords
+        "version": "0.1.3",  # Added debug endpoint
         "llm_provider": settings.llm_provider,
     }
 
