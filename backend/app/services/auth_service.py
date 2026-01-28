@@ -17,8 +17,8 @@ from app.core.config import settings
 from app.models.user import User
 
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing context - truncate_error=False allows passwords > 72 bytes (auto-truncated)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
 
 
 class AuthService:
