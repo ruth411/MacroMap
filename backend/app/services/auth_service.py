@@ -17,8 +17,19 @@ from app.core.config import settings
 from app.models.user import User
 
 
-# Password hashing context - truncate_error=False allows passwords > 72 bytes (auto-truncated)
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
+# Password hashing context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def _truncate_password(password: str) -> str:
+    """Truncate password to 72 bytes for bcrypt compatibility."""
+    encoded = password.encode('utf-8')
+    if len(encoded) <= 72:
+        return password
+    # Truncate to 72 bytes, being careful not to cut in middle of multi-byte char
+    truncated = encoded[:72]
+    # Decode safely, removing any partial character at the end
+    return truncated.decode('utf-8', errors='ignore')
 
 
 class AuthService:
@@ -34,17 +45,15 @@ class AuthService:
 
     @staticmethod
     def hash_password(password: str) -> str:
-        """Hash a password using bcrypt. Truncates to 72 bytes (bcrypt limit)."""
-        # bcrypt has a 72-byte limit, truncate if necessary
-        password_bytes = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-        return pwd_context.hash(password_bytes)
+        """Hash a password using bcrypt."""
+        safe_password = _truncate_password(password)
+        return pwd_context.hash(safe_password)
 
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
-        """Verify a password against its hash. Truncates to 72 bytes (bcrypt limit)."""
-        # bcrypt has a 72-byte limit, truncate to match hash_password
-        password_bytes = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
-        return pwd_context.verify(password_bytes, hashed_password)
+        """Verify a password against its hash."""
+        safe_password = _truncate_password(plain_password)
+        return pwd_context.verify(safe_password, hashed_password)
 
     @staticmethod
     def create_access_token(user_id: str, expires_delta: Optional[timedelta] = None) -> str:
