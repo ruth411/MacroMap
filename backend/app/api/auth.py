@@ -53,41 +53,54 @@ async def register(
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Register a new user with email and password."""
-    auth_service = AuthService(db)
+    try:
+        logger.info(f"Registration attempt for email: {request.email}")
+        auth_service = AuthService(db)
 
-    # Check if email already exists
-    existing_user = await auth_service.get_user_by_email(request.email)
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+        # Check if email already exists
+        existing_user = await auth_service.get_user_by_email(request.email)
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
+            )
+
+        # Validate password
+        if len(request.password) < 6:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Password must be at least 6 characters",
+            )
+
+        # Create user
+        logger.info("Creating user...")
+        user = await auth_service.create_user(
+            email=request.email,
+            password=request.password,
+            name=request.name,
         )
+        logger.info(f"User created with id: {user.id}")
 
-    # Validate password
-    if len(request.password) < 6:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be at least 6 characters",
+        # Generate token
+        access_token = AuthService.create_access_token(user.id)
+        logger.info("Token generated successfully")
+
+        return AuthResponse(
+            access_token=access_token,
+            user=UserResponse(
+                id=user.id,
+                email=user.email,
+                name=user.name,
+            ),
         )
-
-    # Create user
-    user = await auth_service.create_user(
-        email=request.email,
-        password=request.password,
-        name=request.name,
-    )
-
-    # Generate token
-    access_token = AuthService.create_access_token(user.id)
-
-    return AuthResponse(
-        access_token=access_token,
-        user=UserResponse(
-            id=user.id,
-            email=user.email,
-            name=user.name,
-        ),
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Registration error: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}",
+        )
 
 
 @router.post("/login", response_model=AuthResponse)

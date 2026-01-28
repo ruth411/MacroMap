@@ -1,10 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+import logging
 
 from app.core.config import settings
 from app.core.database import init_db
 from app.api import api_router
+
+# Import models to ensure tables are created
+from app.models.user import User  # noqa: F401
+from app.models.session import ChatSession, ChatMessage  # noqa: F401
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -16,7 +24,9 @@ async def lifespan(app: FastAPI):
     settings.data_dir.mkdir(parents=True, exist_ok=True)
 
     # Initialize database
+    logger.info("Initializing database...")
     await init_db()
+    logger.info("Database initialized successfully")
 
     yield
     # Shutdown: cleanup if needed
