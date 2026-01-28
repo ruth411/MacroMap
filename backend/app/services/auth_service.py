@@ -5,6 +5,8 @@ Password hashing, JWT token generation and validation.
 """
 
 import uuid
+import hashlib
+import base64
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
@@ -21,15 +23,16 @@ from app.models.user import User
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def _truncate_password(password: str) -> str:
-    """Truncate password to 72 bytes for bcrypt compatibility."""
-    encoded = password.encode('utf-8')
-    if len(encoded) <= 72:
-        return password
-    # Truncate to 72 bytes, being careful not to cut in middle of multi-byte char
-    truncated = encoded[:72]
-    # Decode safely, removing any partial character at the end
-    return truncated.decode('utf-8', errors='ignore')
+def _prepare_password(password: str) -> str:
+    """
+    Prepare password for bcrypt by pre-hashing with SHA-256.
+    This allows passwords of any length while staying within bcrypt's 72-byte limit.
+    The SHA-256 hash is base64 encoded (44 chars) which is well under 72 bytes.
+    """
+    # Hash the password with SHA-256
+    sha256_hash = hashlib.sha256(password.encode('utf-8')).digest()
+    # Base64 encode to get a string (44 characters, well under 72 bytes)
+    return base64.b64encode(sha256_hash).decode('ascii')
 
 
 class AuthService:
@@ -45,15 +48,15 @@ class AuthService:
 
     @staticmethod
     def hash_password(password: str) -> str:
-        """Hash a password using bcrypt."""
-        safe_password = _truncate_password(password)
-        return pwd_context.hash(safe_password)
+        """Hash a password using bcrypt with SHA-256 pre-hashing."""
+        prepared = _prepare_password(password)
+        return pwd_context.hash(prepared)
 
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
         """Verify a password against its hash."""
-        safe_password = _truncate_password(plain_password)
-        return pwd_context.verify(safe_password, hashed_password)
+        prepared = _prepare_password(plain_password)
+        return pwd_context.verify(prepared, hashed_password)
 
     @staticmethod
     def create_access_token(user_id: str, expires_delta: Optional[timedelta] = None) -> str:

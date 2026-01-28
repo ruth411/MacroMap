@@ -58,7 +58,7 @@ async def health_check():
     return {
         "status": "healthy",
         "app": settings.app_name,
-        "version": "0.1.1",  # Updated to track deployment
+        "version": "0.1.2",  # SHA-256 pre-hashing for passwords
         "llm_provider": settings.llm_provider,
     }
 
