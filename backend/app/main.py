@@ -58,7 +58,7 @@ async def health_check():
     return {
         "status": "healthy",
         "app": settings.app_name,
-        "version": "0.1.3",  # Added debug endpoint
+        "version": "0.1.4",  # Force rebuild with bytecode cleanup
         "llm_provider": settings.llm_provider,
     }
 

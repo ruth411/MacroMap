@@ -21,6 +21,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Clean up any cached bytecode
+RUN find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+RUN find . -name "*.pyc" -delete 2>/dev/null || true
+
 # Create data directory
 RUN mkdir -p /app/data
 
