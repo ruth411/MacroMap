@@ -19,7 +19,7 @@ class EmbeddingProvider:
     """
 
     MODEL = "text-embedding-3-large"
-    DIMENSIONS = 3072  # Larger dimensions for better quality
+    DIMENSIONS = 3072
     MAX_BATCH_SIZE = 2048  # OpenAI limit
 
     def __init__(self, api_key: Optional[str] = None):
@@ -34,7 +34,7 @@ class EmbeddingProvider:
             text: Text to embed
 
         Returns:
-            Embedding vector (1536 dimensions)
+            Embedding vector (3072 dimensions)
         """
         response = await self.client.embeddings.create(
             model=self.model,

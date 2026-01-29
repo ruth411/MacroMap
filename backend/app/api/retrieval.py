@@ -246,6 +246,26 @@ async def delete_ticker(ticker: str) -> dict:
     }
 
 
+@router.post("/reset")
+async def reset_vector_store() -> dict:
+    """
+    Reset the vector store by deleting and recreating the collection.
+
+    Use this when embedding dimensions change or to clear all data.
+    WARNING: This deletes all indexed documents!
+    """
+    vector_store = get_vector_store()
+    old_count = vector_store.count()
+
+    vector_store.reset_collection()
+
+    return {
+        "status": "reset_complete",
+        "documents_deleted": old_count,
+        "message": "Vector store has been reset. Re-index your documents.",
+    }
+
+
 @router.get("/health")
 async def retrieval_health() -> dict:
     """Health check for retrieval service."""

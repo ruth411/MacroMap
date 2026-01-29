@@ -163,6 +163,25 @@ class VectorStore:
             "persist_directory": self.persist_directory,
         }
 
+    def reset_collection(self) -> None:
+        """
+        Delete and recreate the collection.
+
+        Use this when embedding dimensions change or to clear all data.
+        """
+        logger.warning(f"Resetting collection: {self.collection_name}")
+
+        # Delete the collection
+        self._client.delete_collection(name=self.collection_name)
+        logger.info(f"Deleted collection: {self.collection_name}")
+
+        # Recreate with same settings
+        self._collection = self._client.create_collection(
+            name=self.collection_name,
+            metadata={"hnsw:space": "cosine"},
+        )
+        logger.info(f"Recreated collection: {self.collection_name} (empty)")
+
 
 # Singleton instance
 _vector_store: Optional[VectorStore] = None
