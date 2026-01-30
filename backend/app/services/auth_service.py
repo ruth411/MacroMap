@@ -73,7 +73,7 @@ class AuthService:
         }
         encoded_jwt = jwt.encode(
             to_encode,
-            settings.jwt_secret_key,
+            settings.effective_jwt_secret,
             algorithm=settings.jwt_algorithm,
         )
         return encoded_jwt
@@ -84,7 +84,7 @@ class AuthService:
         try:
             payload = jwt.decode(
                 token,
-                settings.jwt_secret_key,
+                settings.effective_jwt_secret,
                 algorithms=[settings.jwt_algorithm],
             )
             user_id: str = payload.get("sub")

@@ -90,9 +90,24 @@ class Settings(BaseSettings):
     temperature: float = 0.7
 
     # Authentication
-    jwt_secret_key: str = "your-secret-key-change-in-production"
+    # IMPORTANT: Set JWT_SECRET_KEY env var in production!
+    # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+    jwt_secret_key: str = ""
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7  # 7 days
+
+    @property
+    def effective_jwt_secret(self) -> str:
+        """Get JWT secret, with fallback for development only."""
+        if self.jwt_secret_key:
+            return self.jwt_secret_key
+        if self.debug:
+            # Only allow default in debug mode
+            return "dev-only-secret-do-not-use-in-production"
+        raise ValueError(
+            "JWT_SECRET_KEY must be set in production! "
+            "Generate with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
 
     # Google OAuth
     google_client_id: str = ""
