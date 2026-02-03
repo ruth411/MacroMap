@@ -127,19 +127,6 @@ class Settings(BaseSettings):
             return False
         return self.cookie_secure
 
-    # Error Tracking (Sentry)
-    # Set SENTRY_DSN env var to enable. Get your DSN from https://sentry.io
-    sentry_dsn: str = ""
-    sentry_traces_sample_rate: float = 0.1  # 10% of requests traced for performance
-    sentry_environment: str = ""  # auto-detected from debug flag if empty
-
-    @property
-    def effective_sentry_environment(self) -> str:
-        """Determine Sentry environment from debug flag if not explicitly set."""
-        if self.sentry_environment:
-            return self.sentry_environment
-        return "development" if self.debug else "production"
-
     # Rate Limiting
     rate_limit_enabled: bool = True
     rate_limit_default: str = "100/minute"  # Default for general endpoints
