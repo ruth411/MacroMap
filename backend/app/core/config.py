@@ -113,6 +113,13 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
 
+    # Rate Limiting
+    rate_limit_enabled: bool = True
+    rate_limit_default: str = "100/minute"  # Default for general endpoints
+    rate_limit_auth: str = "5/minute"  # Stricter for auth endpoints (login, register)
+    rate_limit_chat: str = "20/minute"  # Chat endpoints
+    rate_limit_ingestion: str = "10/minute"  # EDGAR ingestion (heavy operations)
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
