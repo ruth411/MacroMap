@@ -3,8 +3,10 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 
+from app.core.rate_limit import limiter
+from app.core.config import settings
 from app.models.edgar import (
     IngestRequest,
     IngestResponse,
@@ -37,8 +39,10 @@ async def _run_ingestion(task_id: str, ticker: str, filing_types: list[str], yea
 
 
 @router.post("/ingest", response_model=IngestResponse)
+@limiter.limit(settings.rate_limit_ingestion)
 async def ingest_filings(
     request: IngestRequest,
+    req: Request,  # Required for rate limiter
     background_tasks: BackgroundTasks
 ) -> IngestResponse:
     """

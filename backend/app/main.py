@@ -5,6 +5,7 @@ import logging
 
 from app.core.config import settings
 from app.core.database import init_db
+from app.core.rate_limit import setup_rate_limiting
 from app.api import api_router
 
 # Import models to ensure tables are created
@@ -47,6 +48,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate limiting
+setup_rate_limiting(app)
 
 # Include API routes
 app.include_router(api_router, prefix=settings.api_prefix)

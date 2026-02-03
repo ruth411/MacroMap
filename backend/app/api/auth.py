@@ -5,12 +5,14 @@ Endpoints for user registration, login, and OAuth.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Request
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_current_user
+from app.core.rate_limit import limiter
+from app.core.config import settings
 from app.models.user import User
 from app.services.auth_service import AuthService
 
@@ -48,8 +50,10 @@ class AuthResponse(BaseModel):
 
 
 @router.post("/register", response_model=AuthResponse)
+@limiter.limit(settings.rate_limit_auth)
 async def register(
     request: RegisterRequest,
+    req: Request,  # Required for rate limiter
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Register a new user with email and password."""
@@ -104,8 +108,10 @@ async def register(
 
 
 @router.post("/login", response_model=AuthResponse)
+@limiter.limit(settings.rate_limit_auth)
 async def login(
     request: LoginRequest,
+    req: Request,  # Required for rate limiter
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Login with email and password."""
@@ -131,8 +137,10 @@ async def login(
 
 
 @router.post("/google", response_model=AuthResponse)
+@limiter.limit(settings.rate_limit_auth)
 async def google_auth(
     request: GoogleAuthRequest,
+    req: Request,  # Required for rate limiter
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Authenticate with Google OAuth."""

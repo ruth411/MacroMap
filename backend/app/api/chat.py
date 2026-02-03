@@ -6,10 +6,12 @@ Endpoints for chat interactions with the financial assistant.
 
 import logging
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limit import limiter
+from app.core.config import settings
 from app.models.chat import (
     ChatRequest,
     ChatResponse,
@@ -37,8 +39,10 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 
 @router.post("/", response_model=ChatResponse)
+@limiter.limit(settings.rate_limit_chat)
 async def chat(
     request: ChatRequest,
+    req: Request,  # Required for rate limiter
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user),
 ) -> ChatResponse:
