@@ -113,6 +113,20 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
 
+    # Cookie Settings for httpOnly JWT
+    cookie_name: str = "access_token"
+    cookie_secure: bool = True  # True in production (HTTPS), set False for local HTTP
+    cookie_samesite: str = "lax"  # "lax" prevents CSRF while allowing normal navigation
+    cookie_domain: str = ""  # Empty = auto (set to your domain in production if needed)
+    cookie_max_age: int = 60 * 60 * 24 * 7  # 7 days in seconds (matches JWT expiry)
+
+    @property
+    def effective_cookie_secure(self) -> bool:
+        """In debug mode, allow insecure cookies for localhost development."""
+        if self.debug:
+            return False
+        return self.cookie_secure
+
     # Rate Limiting
     rate_limit_enabled: bool = True
     rate_limit_default: str = "100/minute"  # Default for general endpoints

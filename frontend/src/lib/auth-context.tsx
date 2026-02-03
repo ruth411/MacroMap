@@ -13,38 +13,53 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
   googleLogin: (googleToken: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load token from localStorage on mount
+  // On mount, check if we have a valid session by calling /auth/me
+  // The httpOnly cookie is sent automatically by the browser
   useEffect(() => {
-    const storedToken = localStorage.getItem("auth_token");
-    const storedUser = localStorage.getItem("auth_user");
+    async function checkAuth() {
+      try {
+        const response = await fetch(`${API_BASE_URL}${API_PREFIX}/auth/me`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",  // Send httpOnly cookie
+        });
 
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+        if (response.ok) {
+          const userData = await response.json();
+          setUser(userData);
+        } else {
+          setUser(null);
+        }
+      } catch {
+        // Backend unreachable or cookie invalid
+        setUser(null);
+      } finally {
+        setIsLoading(false);
+      }
     }
-    setIsLoading(false);
+
+    checkAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",  // Receive and store httpOnly cookie
       body: JSON.stringify({ email, password }),
     });
 
@@ -54,16 +69,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await response.json();
-    setToken(data.access_token);
     setUser(data.user);
-    localStorage.setItem("auth_token", data.access_token);
-    localStorage.setItem("auth_user", JSON.stringify(data.user));
   };
 
   const register = async (email: string, password: string, name?: string) => {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",  // Receive and store httpOnly cookie
       body: JSON.stringify({ email, password, name }),
     });
 
@@ -73,16 +86,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await response.json();
-    setToken(data.access_token);
     setUser(data.user);
-    localStorage.setItem("auth_token", data.access_token);
-    localStorage.setItem("auth_user", JSON.stringify(data.user));
   };
 
   const googleLogin = async (googleToken: string) => {
     const response = await fetch(`${API_BASE_URL}${API_PREFIX}/auth/google`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",  // Receive and store httpOnly cookie
       body: JSON.stringify({ token: googleToken }),
     });
 
@@ -92,26 +103,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await response.json();
-    setToken(data.access_token);
     setUser(data.user);
-    localStorage.setItem("auth_token", data.access_token);
-    localStorage.setItem("auth_user", JSON.stringify(data.user));
   };
 
-  const logout = () => {
-    setToken(null);
+  const logout = async () => {
+    try {
+      // Call backend to clear the httpOnly cookie
+      await fetch(`${API_BASE_URL}${API_PREFIX}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+      // Even if the request fails, clear local state
+    }
     setUser(null);
-    localStorage.removeItem("auth_token");
-    localStorage.removeItem("auth_user");
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        token,
         isLoading,
-        isAuthenticated: !!token,
+        isAuthenticated: !!user,
         login,
         register,
         googleLogin,
@@ -129,10 +142,4 @@ export function useAuth() {
     throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
-}
-
-// Helper to get auth header for API calls
-export function getAuthToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("auth_token");
 }

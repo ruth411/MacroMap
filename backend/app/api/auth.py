@@ -1,11 +1,12 @@
 """
 Authentication API Router
 
-Endpoints for user registration, login, and OAuth.
+Endpoints for user registration, login, OAuth, and logout.
+Sets JWT in httpOnly cookies for security.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, Depends, status, Request
+from fastapi import APIRouter, HTTPException, Depends, status, Request, Response
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -44,9 +45,33 @@ class UserResponse(BaseModel):
 
 
 class AuthResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
     user: UserResponse
+
+
+def _set_auth_cookie(response: Response, token: str) -> None:
+    """Set the JWT as an httpOnly cookie on the response."""
+    response.set_cookie(
+        key=settings.cookie_name,
+        value=token,
+        httponly=True,  # JavaScript cannot access this cookie
+        secure=settings.effective_cookie_secure,  # HTTPS only in production
+        samesite=settings.cookie_samesite,  # CSRF protection
+        max_age=settings.cookie_max_age,
+        path="/",  # Cookie sent for all paths
+        domain=settings.cookie_domain or None,  # None = auto
+    )
+
+
+def _clear_auth_cookie(response: Response) -> None:
+    """Remove the auth cookie from the response."""
+    response.delete_cookie(
+        key=settings.cookie_name,
+        httponly=True,
+        secure=settings.effective_cookie_secure,
+        samesite=settings.cookie_samesite,
+        path="/",
+        domain=settings.cookie_domain or None,
+    )
 
 
 @router.post("/register", response_model=AuthResponse)
@@ -54,6 +79,7 @@ class AuthResponse(BaseModel):
 async def register(
     request: RegisterRequest,
     req: Request,  # Required for rate limiter
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Register a new user with email and password."""
@@ -85,12 +111,11 @@ async def register(
         )
         logger.info(f"User created with id: {user.id}")
 
-        # Generate token
+        # Generate token and set as httpOnly cookie
         access_token = AuthService.create_access_token(user.id)
-        logger.info("Token generated successfully")
+        _set_auth_cookie(response, access_token)
 
         return AuthResponse(
-            access_token=access_token,
             user=UserResponse(
                 id=user.id,
                 email=user.email,
@@ -112,6 +137,7 @@ async def register(
 async def login(
     request: LoginRequest,
     req: Request,  # Required for rate limiter
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Login with email and password."""
@@ -124,10 +150,11 @@ async def login(
             detail="Invalid email or password",
         )
 
+    # Generate token and set as httpOnly cookie
     access_token = AuthService.create_access_token(user.id)
+    _set_auth_cookie(response, access_token)
 
     return AuthResponse(
-        access_token=access_token,
         user=UserResponse(
             id=user.id,
             email=user.email,
@@ -141,6 +168,7 @@ async def login(
 async def google_auth(
     request: GoogleAuthRequest,
     req: Request,  # Required for rate limiter
+    response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Authenticate with Google OAuth."""
@@ -157,16 +185,24 @@ async def google_auth(
     # Get or create user
     user = await auth_service.get_or_create_google_user(google_info)
 
+    # Generate token and set as httpOnly cookie
     access_token = AuthService.create_access_token(user.id)
+    _set_auth_cookie(response, access_token)
 
     return AuthResponse(
-        access_token=access_token,
         user=UserResponse(
             id=user.id,
             email=user.email,
             name=user.name,
         ),
     )
+
+
+@router.post("/logout")
+async def logout(response: Response):
+    """Logout by clearing the auth cookie."""
+    _clear_auth_cookie(response)
+    return {"status": "ok", "message": "Logged out successfully"}
 
 
 @router.get("/me", response_model=UserResponse)
@@ -179,5 +215,3 @@ async def get_me(
         email=current_user.email,
         name=current_user.name,
     )
-
-
