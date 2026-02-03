@@ -3,10 +3,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import logging
 
+import sentry_sdk
+
 from app.core.config import settings
 from app.core.database import init_db
 from app.core.rate_limit import setup_rate_limiting
 from app.api import api_router
+
+# Initialize Sentry error tracking (only when DSN is configured)
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        environment=settings.effective_sentry_environment,
+        traces_sample_rate=settings.sentry_traces_sample_rate,
+        send_default_pii=False,  # Don't send personally identifiable info
+        enable_tracing=True,
+    )
 
 # Import models to ensure tables are created
 from app.models.user import User  # noqa: F401
