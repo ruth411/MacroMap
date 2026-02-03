@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
-from app.core.database import get_async_session
+from app.core.database import get_db
 
 router = APIRouter(prefix="/migrate", tags=["migrate"])
 
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/migrate", tags=["migrate"])
 @router.post("/add-user-id-column")
 async def add_user_id_column():
     """Add user_id column to chat_sessions if missing."""
-    async for session in get_async_session():
+    async for session in get_db():
         try:
             # Check if column exists
             check_sql = text("""
