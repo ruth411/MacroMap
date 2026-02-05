@@ -116,16 +116,34 @@ class Settings(BaseSettings):
     # Cookie Settings for httpOnly JWT
     cookie_name: str = "access_token"
     cookie_secure: bool = True  # True in production (HTTPS), set False for local HTTP
-    cookie_samesite: str = "lax"  # "lax" prevents CSRF while allowing normal navigation
+    cookie_samesite: str = "none"  # "none" required for cross-origin cookies (Vercel→Railway)
     cookie_domain: str = ""  # Empty = auto (set to your domain in production if needed)
     cookie_max_age: int = 60 * 60 * 24 * 7  # 7 days in seconds (matches JWT expiry)
 
     @property
     def effective_cookie_secure(self) -> bool:
-        """In debug mode, allow insecure cookies for localhost development."""
+        """
+        Secure flag for cookies.
+        Must be True when SameSite=None (required by browsers).
+        In debug mode with SameSite=lax, allow insecure for localhost.
+        """
+        if self.effective_cookie_samesite == "none":
+            return True  # SameSite=None requires Secure
         if self.debug:
             return False
         return self.cookie_secure
+
+    @property
+    def effective_cookie_samesite(self) -> str:
+        """
+        SameSite policy for cookies.
+        - "none": Required for cross-origin (frontend and backend on different domains)
+        - "lax": Safe default for same-origin setups
+        In debug mode, use "lax" since frontend/backend are both on localhost.
+        """
+        if self.debug:
+            return "lax"
+        return self.cookie_samesite
 
     # Rate Limiting
     rate_limit_enabled: bool = True

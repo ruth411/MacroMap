@@ -54,8 +54,8 @@ def _set_auth_cookie(response: Response, token: str) -> None:
         key=settings.cookie_name,
         value=token,
         httponly=True,  # JavaScript cannot access this cookie
-        secure=settings.effective_cookie_secure,  # HTTPS only in production
-        samesite=settings.cookie_samesite,  # CSRF protection
+        secure=settings.effective_cookie_secure,  # HTTPS only; required for SameSite=None
+        samesite=settings.effective_cookie_samesite,  # "none" for cross-origin, "lax" for localhost
         max_age=settings.cookie_max_age,
         path="/",  # Cookie sent for all paths
         domain=settings.cookie_domain or None,  # None = auto
@@ -68,7 +68,7 @@ def _clear_auth_cookie(response: Response) -> None:
         key=settings.cookie_name,
         httponly=True,
         secure=settings.effective_cookie_secure,
-        samesite=settings.cookie_samesite,
+        samesite=settings.effective_cookie_samesite,
         path="/",
         domain=settings.cookie_domain or None,
     )
