@@ -40,7 +40,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware
+# Rate limiting (added first = innermost middleware)
+setup_rate_limiting(app)
+
+# CORS middleware (added last = outermost, processes requests first)
+# Must be outermost so CORS headers are always included,
+# even on rate-limited or error responses
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -48,9 +53,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Rate limiting
-setup_rate_limiting(app)
 
 # Include API routes
 app.include_router(api_router, prefix=settings.api_prefix)
