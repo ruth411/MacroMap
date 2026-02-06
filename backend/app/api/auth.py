@@ -77,18 +77,18 @@ def _clear_auth_cookie(response: Response) -> None:
 @router.post("/register", response_model=AuthResponse)
 @limiter.limit(settings.rate_limit_auth)
 async def register(
-    request: RegisterRequest,
-    req: Request,  # Required for rate limiter
+    register_data: RegisterRequest,
+    request: Request,  # Required for rate limiter (must be named 'request')
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Register a new user with email and password."""
     try:
-        logger.info(f"Registration attempt for email: {request.email}")
+        logger.info(f"Registration attempt for email: {register_data.email}")
         auth_service = AuthService(db)
 
         # Check if email already exists
-        existing_user = await auth_service.get_user_by_email(request.email)
+        existing_user = await auth_service.get_user_by_email(register_data.email)
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -96,7 +96,7 @@ async def register(
             )
 
         # Validate password
-        if len(request.password) < 6:
+        if len(register_data.password) < 6:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Password must be at least 6 characters",
@@ -105,9 +105,9 @@ async def register(
         # Create user
         logger.info("Creating user...")
         user = await auth_service.create_user(
-            email=request.email,
-            password=request.password,
-            name=request.name,
+            email=register_data.email,
+            password=register_data.password,
+            name=register_data.name,
         )
         logger.info(f"User created with id: {user.id}")
 
@@ -135,15 +135,15 @@ async def register(
 @router.post("/login", response_model=AuthResponse)
 @limiter.limit(settings.rate_limit_auth)
 async def login(
-    request: LoginRequest,
-    req: Request,  # Required for rate limiter
+    login_data: LoginRequest,
+    request: Request,  # Required for rate limiter (must be named 'request')
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
     """Login with email and password."""
     auth_service = AuthService(db)
 
-    user = await auth_service.authenticate_user(request.email, request.password)
+    user = await auth_service.authenticate_user(login_data.email, login_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -166,8 +166,8 @@ async def login(
 @router.post("/google", response_model=AuthResponse)
 @limiter.limit(settings.rate_limit_auth)
 async def google_auth(
-    request: GoogleAuthRequest,
-    req: Request,  # Required for rate limiter
+    google_data: GoogleAuthRequest,
+    request: Request,  # Required for rate limiter (must be named 'request')
     response: Response,
     db: AsyncSession = Depends(get_db),
 ) -> AuthResponse:
@@ -175,7 +175,7 @@ async def google_auth(
     auth_service = AuthService(db)
 
     # Verify Google token
-    google_info = await auth_service.authenticate_google(request.token)
+    google_info = await auth_service.authenticate_google(google_data.token)
     if not google_info:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
