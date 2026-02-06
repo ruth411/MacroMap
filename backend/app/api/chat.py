@@ -41,8 +41,8 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 @router.post("/", response_model=ChatResponse)
 @limiter.limit(settings.rate_limit_chat)
 async def chat(
-    request: ChatRequest,
-    req: Request,  # Required for rate limiter
+    chat_request: ChatRequest,
+    request: Request,  # Required for rate limiter (must be named 'request')
     db: AsyncSession = Depends(get_db),
     current_user: Optional[User] = Depends(get_optional_user),
 ) -> ChatResponse:
@@ -62,18 +62,18 @@ async def chat(
         # Check if this is the first message (for title generation later)
         is_first_message = False
         if not is_guest:
-            existing_messages = await session_service.get_messages(request.session_id)
+            existing_messages = await session_service.get_messages(chat_request.session_id)
             is_first_message = len([m for m in existing_messages if m.role == "user"]) == 0
 
         # Detect question type for response metadata
-        question_type = FinancialPrompts.detect_question_type(request.message)
+        question_type = FinancialPrompts.detect_question_type(chat_request.message)
 
         # Persist user message (only for authenticated users)
         if not is_guest:
             await session_service.add_message(
-                session_id=request.session_id,
+                session_id=chat_request.session_id,
                 role="user",
-                content=request.message,
+                content=chat_request.message,
                 user_id=user_id,
             )
 
@@ -82,17 +82,17 @@ async def chat(
         citations = []
         sources_used = 0
 
-        if request.use_rag:
+        if chat_request.use_rag:
             try:
                 retrieval_service = get_retrieval_service()
 
                 # Check if we have any documents indexed
                 if retrieval_service.vector_store.count() > 0:
                     retrieval_query = RetrievalQuery(
-                        query=request.message,
+                        query=chat_request.message,
                         top_k=5,
-                        ticker=request.ticker_filter,
-                        filing_type=request.filing_type_filter,
+                        ticker=chat_request.ticker_filter,
+                        filing_type=chat_request.filing_type_filter,
                     )
 
                     retrieval_result = await retrieval_service.retrieve(retrieval_query)
@@ -107,16 +107,16 @@ async def chat(
                 logger.warning(f"RAG retrieval failed, continuing without context: {e}")
 
         # Generate response with context
-        if request.use_templates:
+        if chat_request.use_templates:
             response = await llm_service.chat(
-                message=request.message,
-                session_id=request.session_id,
+                message=chat_request.message,
+                session_id=chat_request.session_id,
                 context=context,
             )
         else:
             response = await llm_service.simple_chat(
-                message=request.message,
-                session_id=request.session_id,
+                message=chat_request.message,
+                session_id=chat_request.session_id,
             )
 
         # Append citations section if we have sources
@@ -129,7 +129,7 @@ async def chat(
         # Persist assistant response (only for authenticated users)
         if not is_guest:
             await session_service.add_message(
-                session_id=request.session_id,
+                session_id=chat_request.session_id,
                 role="assistant",
                 content=response,
                 question_type=question_type,
@@ -139,10 +139,10 @@ async def chat(
             # Generate summarized title for first message
             if is_first_message:
                 try:
-                    title_prompt = f"Generate a very short title (3-5 words max) summarizing this question. Only respond with the title, nothing else.\n\nQuestion: {request.message}"
+                    title_prompt = f"Generate a very short title (3-5 words max) summarizing this question. Only respond with the title, nothing else.\n\nQuestion: {chat_request.message}"
                     title = await llm_service.simple_chat(
                         message=title_prompt,
-                        session_id=f"title-gen-{request.session_id}",
+                        session_id=f"title-gen-{chat_request.session_id}",
                     )
                     # Clean up the title
                     title = title.strip().strip('"').strip("'")
@@ -150,16 +150,16 @@ async def chat(
                         title = title[:47] + "..."
                     if title:
                         await session_service.update_session_title(
-                            request.session_id, title, user_id=user_id
+                            chat_request.session_id, title, user_id=user_id
                         )
                     # Clean up the title generation session
-                    llm_service.delete_conversation(f"title-gen-{request.session_id}")
+                    llm_service.delete_conversation(f"title-gen-{chat_request.session_id}")
                 except Exception as e:
                     logger.warning(f"Failed to generate title: {e}")
 
         return ChatResponse(
             response=response,
-            session_id=request.session_id,
+            session_id=chat_request.session_id,
             question_type=question_type,
             timestamp=datetime.utcnow(),
             sources_used=sources_used,
