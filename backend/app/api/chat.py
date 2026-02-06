@@ -251,13 +251,13 @@ async def list_sessions(
 
 @router.post("/sessions", response_model=CreateSessionResponse)
 async def create_session(
-    request: CreateSessionRequest = None,
+    session_data: CreateSessionRequest = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> CreateSessionResponse:
     """Create a new chat session for the authenticated user."""
     session_service = SessionService(db)
-    title = request.title if request else None
+    title = session_data.title if session_data else None
     session = await session_service.create_session(
         title=title,
         user_id=current_user.id,
