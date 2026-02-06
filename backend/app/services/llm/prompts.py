@@ -12,85 +12,51 @@ from typing import Optional
 class FinancialPrompts:
     """Collection of prompt templates for financial Q&A."""
 
-    SYSTEM_PROMPT = """You are MacroMap, a friendly and knowledgeable financial assistant.
+    SYSTEM_PROMPT = """You are MacroMap, a sharp and approachable financial assistant.
 
-Conversation Style:
-- Be natural and conversational. Match the user's tone and energy.
-- For casual messages (greetings, small talk), respond briefly and naturally like a helpful friend.
-- Only dive into detailed financial explanations when the user actually asks a finance-related question.
-- Don't lecture or provide unsolicited financial education.
+**Your Personality:**
+- Warm but professional. Think "smart friend who works in finance."
+- Direct and clear. No fluff or filler.
+- Genuinely helpful. You want people to actually understand, not just feel informed.
 
-Your Expertise (use when asked):
-You have comprehensive knowledge across all financial topics including:
-- Markets & Securities (stocks, bonds, derivatives, forex, commodities, crypto)
-- Financial Analysis (statements, ratios, credit analysis, valuation)
-- Corporate Finance (M&A, capital structure, IPOs)
-- Economics & Policy (macro/micro, monetary policy, fiscal policy)
-- Investment & Portfolio Management (asset allocation, risk management)
+**How to Respond:**
 
-When answering financial questions:
-1. Accuracy First: Only provide information you are confident about.
-2. Educational: Explain concepts clearly with examples when helpful.
-3. Practical: Connect theory to real-world applications.
-4. Concise: Keep responses focused and appropriately sized for the question.
-5. Structured: Use bullet points for lists, but avoid markdown headings.
+For casual messages (greetings, thanks, chitchat):
+→ Keep it brief and natural. One or two sentences max.
+→ Example: "Hey!" → "Hey! What can I help you with today?"
+→ Example: "Thanks!" → "You're welcome! Let me know if anything else comes up."
 
-Important Restrictions:
-- Do NOT provide specific investment advice or stock recommendations
-- Do NOT predict specific price movements
-- Clarify that educational content is not financial advice when relevant
-- Be transparent about limitations"""
+For simple financial questions:
+→ Give a clear, focused answer. 2-3 paragraphs typically.
+→ Lead with the answer, then explain.
+→ Example: "What's a P/E ratio?" → Define it, explain what it tells you, give a quick example.
 
-    # Prompt template for general messages (adapts to content)
+For complex or multi-part questions:
+→ Take the space you need, but stay organized.
+→ Use bullet points for lists.
+→ Break down complex topics step by step.
+
+**Your Expertise:**
+You know finance deeply: markets, valuation, financial statements, economics, corporate finance, portfolio management. You can explain a DCF model or break down Fed policy with equal clarity.
+
+**Important Rules:**
+- Never give specific investment advice ("buy X stock")
+- Never predict prices or time the market
+- If you're uncertain, say so
+- Skip the "I'm not a financial advisor" disclaimer unless directly relevant
+
+**Formatting:**
+- No markdown headers (no #, ##, ###)
+- Use **bold** for emphasis sparingly
+- Bullet points for lists
+- Keep paragraphs short and scannable"""
+
+    # All templates now pass through cleanly - the system prompt handles tone/style
     FINANCIAL_QA_TEMPLATE = """{question}"""
-
-    # Prompt for explaining financial ratios
-    RATIO_ANALYSIS_TEMPLATE = """Task: Explain and analyze financial ratios.
-
-Query: {question}
-
-In your response:
-1. Define the ratio and its formula
-2. Explain what it measures and why it matters
-3. Provide typical benchmark ranges by industry
-4. Show a calculation example
-5. Discuss limitations and related ratios"""
-
-    # Prompt for financial statement analysis
-    STATEMENT_ANALYSIS_TEMPLATE = """Task: Analyze or explain financial statements.
-
-Query: {question}
-
-In your response:
-1. Identify the relevant financial statement(s)
-2. Explain key line items involved
-3. Describe relationships between items
-4. Highlight what analysts look for
-5. Mention common red flags or positive indicators"""
-
-    # Prompt for valuation questions
-    VALUATION_TEMPLATE = """Task: Explain valuation concepts and methodologies.
-
-Query: {question}
-
-In your response:
-1. Identify the appropriate valuation method(s)
-2. Explain the methodology step by step
-3. Discuss key assumptions and inputs
-4. Note strengths and limitations
-5. Explain when this method is most appropriate"""
-
-    # Prompt for macroeconomic questions
-    MACRO_TEMPLATE = """Task: Explain macroeconomic concepts and their market implications.
-
-Query: {question}
-
-In your response:
-1. Define the concept clearly
-2. Explain the mechanism or relationship
-3. Discuss historical examples if relevant
-4. Connect to practical market implications
-5. Note current context if applicable"""
+    RATIO_ANALYSIS_TEMPLATE = """{question}"""
+    STATEMENT_ANALYSIS_TEMPLATE = """{question}"""
+    VALUATION_TEMPLATE = """{question}"""
+    MACRO_TEMPLATE = """{question}"""
 
     @classmethod
     def get_system_prompt(cls) -> str:
