@@ -1,7 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import logging
+import traceback
 
 from app.core.config import settings
 from app.core.database import init_db
@@ -53,6 +55,39 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def get_cors_headers(request: Request) -> dict:
+    """Get CORS headers for the response based on request origin."""
+    origin = request.headers.get("origin", "")
+    if origin in settings.cors_origins:
+        return {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+        }
+    return {}
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Global exception handler that ensures CORS headers are always present.
+    This catches exceptions that bypass the CORS middleware (e.g., from ServerErrorMiddleware).
+    """
+    logger.error(f"Unhandled exception: {exc}\n{traceback.format_exc()}")
+
+    # Build response with CORS headers
+    headers = get_cors_headers(request)
+
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": f"Internal server error: {str(exc)}",
+            "type": type(exc).__name__,
+        },
+        headers=headers,
+    )
+
 
 # Include API routes
 app.include_router(api_router, prefix=settings.api_prefix)
