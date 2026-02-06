@@ -41,8 +41,8 @@ async def _run_ingestion(task_id: str, ticker: str, filing_types: list[str], yea
 @router.post("/ingest", response_model=IngestResponse)
 @limiter.limit(settings.rate_limit_ingestion)
 async def ingest_filings(
-    request: IngestRequest,
-    req: Request,  # Required for rate limiter
+    ingest_data: IngestRequest,
+    request: Request,  # Required for rate limiter (must be named 'request')
     background_tasks: BackgroundTasks
 ) -> IngestResponse:
     """
@@ -57,7 +57,7 @@ async def ingest_filings(
     edgar_service = get_edgar_service()
 
     # Validate ticker format
-    ticker = request.ticker.upper().strip()
+    ticker = ingest_data.ticker.upper().strip()
     if not ticker.isalnum():
         raise HTTPException(
             status_code=400,
@@ -67,8 +67,8 @@ async def ingest_filings(
     # Create task
     task = edgar_service.create_task(
         ticker=ticker,
-        filing_types=request.filing_types,
-        years=request.years,
+        filing_types=ingest_data.filing_types,
+        years=ingest_data.years,
     )
 
     # Start background ingestion
@@ -76,8 +76,8 @@ async def ingest_filings(
         _run_ingestion,
         task.task_id,
         ticker,
-        request.filing_types,
-        request.years,
+        ingest_data.filing_types,
+        ingest_data.years,
     )
 
     return IngestResponse(
