@@ -9,14 +9,17 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for caching
-COPY requirements.txt .
+COPY requirements.prod.txt .
 
 # Install CPU-only PyTorch FIRST (much smaller ~200MB vs 2GB for full torch)
 # This prevents sentence-transformers from installing the full GPU version
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
-# Install remaining Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install heavy ML dependencies separately to avoid memory issues
+RUN pip install --no-cache-dir transformers sentence-transformers
+
+# Install remaining Python dependencies (production only, no test deps)
+RUN pip install --no-cache-dir -r requirements.prod.txt
 
 # Copy application code
 COPY . .
