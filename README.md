@@ -1,119 +1,142 @@
-# Financial Analyst Copilot (SEC EDGAR RAG)
+# MacroMap
 
-A full-stack prototype that turns SEC EDGAR filings (10-K/10-Q) into a searchable, citeable knowledge base and lets you ask questions through a chat UI. The backend ingests filings, parses them into sections, chunks + embeds the text, stores vectors in ChromaDB, and answers questions using Retrieval-Augmented Generation (RAG). The frontend is a lightweight Next.js chat experience.
+A financial analyst copilot that transforms SEC EDGAR filings into an intelligent, searchable knowledge base. Ask questions about 10-K and 10-Q filings through a conversational interface powered by RAG (Retrieval-Augmented Generation).
 
----
-
-## What’s in this repo (source of truth)
-
-### Backend (FastAPI)
-- EDGAR ingestion (download + parse filings into sections)
-- Chunking with overlap + metadata (ticker, form, accession, section, etc.)
-- Vector store: **ChromaDB (persistent)**
-- Embeddings: **OpenAI `text-embedding-3-small`**
-- LLM providers supported (generation): OpenAI / Ollama / Bedrock / HuggingFace (via an adapter)
-- RAG chat endpoint with inline **Sources** appended when retrieval is used
-- Deployment entrypoints for **Railway** and **Vercel** (serverless handler)
-
-### Frontend (Next.js)
-- Landing page + `/chat` page
-- Calls backend for health + chat
-- Minimal UI components (chat, status pill, clear session)
+**Live Demo:** [macromap.ruthwikdovala.com](https://macromap.ruthwikdovala.com)
 
 ---
 
-## Quickstart (local)
+## Features
 
-### 1) Prerequisites
-- Node.js 18+ (or 20+ recommended)
-- Python 3.10+
-- An EDGAR-compliant **User-Agent** (required by SEC)
-- OpenAI API key (required for embeddings; generation can use other providers but embeddings are OpenAI-only in this repo)
+- **SEC Filing Ingestion** — Automatically download and parse 10-K/10-Q filings from EDGAR
+- **Intelligent Search** — Hybrid search combining semantic embeddings with keyword matching
+- **RAG-Powered Chat** — Answers grounded in actual SEC filings with source citations
+- **Query Expansion** — Automatically generates related queries for comprehensive retrieval
+- **Cross-Encoder Reranking** — Improves result relevance using neural reranking
+- **Multi-Provider LLM Support** — OpenAI, Ollama, AWS Bedrock, HuggingFace
+- **User Authentication** — Secure JWT-based auth with Google OAuth support
+- **Rate Limiting** — Protection against API abuse
+- **Production Ready** — Deployed on Railway (backend) + Vercel (frontend)
 
-### 2) Clone
-```bash
-git clone https://github.com/ruth411/MacroMap.git
-cd MacroMap-main
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| **Frontend** | Next.js 14, TypeScript, Tailwind CSS |
+| **Backend** | FastAPI, Python 3.11 |
+| **Database** | PostgreSQL (users/sessions), ChromaDB (vectors) |
+| **Embeddings** | OpenAI `text-embedding-3-small` |
+| **Reranking** | `cross-encoder/ms-marco-MiniLM-L-6-v2` |
+| **Auth** | JWT with httpOnly cookies, Google OAuth |
+| **Deployment** | Railway (API), Vercel (UI) |
+
+---
+
+## Architecture
+
+```
+┌─────────────────┐     ┌─────────────────────────────────────────┐
+│                 │     │              Backend (FastAPI)          │
+│   Next.js UI    │────▶│                                         │
+│   (Vercel)      │     │  ┌─────────┐  ┌─────────┐  ┌─────────┐ │
+│                 │◀────│  │  Auth   │  │  Chat   │  │  EDGAR  │ │
+└─────────────────┘     │  └────┬────┘  └────┬────┘  └────┬────┘ │
+                        │       │            │            │       │
+                        │       ▼            ▼            ▼       │
+                        │  ┌─────────┐  ┌─────────┐  ┌─────────┐ │
+                        │  │PostgreSQL│  │ChromaDB │  │SEC EDGAR│ │
+                        │  │(Users)  │  │(Vectors)│  │  (API)  │ │
+                        │  └─────────┘  └─────────┘  └─────────┘ │
+                        └─────────────────────────────────────────┘
 ```
 
-> If your folder name differs (e.g., `MacroMap`), adjust the paths accordingly.
+### RAG Pipeline
+
+1. **Query Expansion** — Generate 3 related queries for broader coverage
+2. **Hybrid Search** — Combine semantic (embeddings) + keyword (BM25) search
+3. **Cross-Encoder Reranking** — Rerank results for precision
+4. **Context Assembly** — Build prompt with retrieved chunks
+5. **Generation** — LLM generates answer with inline citations
 
 ---
 
-## Backend setup (FastAPI)
+## Quick Start
 
-### 1) Create venv + install deps
+### Prerequisites
+
+- Python 3.10+
+- Node.js 18+
+- OpenAI API key
+- PostgreSQL (or use SQLite for local dev)
+
+### Backend Setup
+
 ```bash
 cd backend
 
+# Create virtual environment
 python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# macOS/Linux:
-source .venv/bin/activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
+# Install dependencies
 pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your keys
 ```
 
-### 2) Configure environment variables
-Create `backend/.env` (or export variables in your shell):
+**Required environment variables:**
 
-```bash
-# Required for EDGAR requests (SEC policy)
-SEC_USER_AGENT="Your Name your.email@domain.com"
+```env
+# SEC EDGAR (required for ingestion)
+SEC_USER_AGENT="YourName your.email@domain.com"
 
-# Required for embeddings (OpenAI)
+# OpenAI (required for embeddings)
 OPENAI_API_KEY="sk-..."
 
-# Optional: choose your generation provider (defaults vary by config)
-# Examples:
-LLM_PROVIDER="openai"        # openai | ollama | bedrock | huggingface
-OPENAI_MODEL="gpt-4o-mini"   # or your preferred model
+# Database
+DATABASE_URL="postgresql://user:pass@localhost/macromap"
+
+# Auth
+JWT_SECRET="your-secure-random-string"
+
+# Optional: LLM provider
+LLM_PROVIDER="openai"  # openai | ollama | bedrock | huggingface
 ```
 
-### 3) Run the backend
+**Run the server:**
+
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
 
-Check:
-- Health: `GET http://localhost:8000/health`
-- API docs (FastAPI): `http://localhost:8000/docs`
+### Frontend Setup
 
----
-
-## Frontend setup (Next.js)
-
-### 1) Install deps
 ```bash
-cd ../frontend
+cd frontend
+
+# Install dependencies
 npm install
-```
 
-### 2) Configure API URL
-Create `frontend/.env.local`:
+# Configure environment
+echo "NEXT_PUBLIC_API_URL=http://localhost:8000" > .env.local
 
-```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
-### 3) Run the frontend
-```bash
+# Run development server
 npm run dev
 ```
 
-Open:
-- `http://localhost:3000`
+Open [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## How to use (EDGAR → Index → Chat)
+## Usage
 
-### Step A — Ingest filings from EDGAR
-The backend stores raw filings + parsed JSON locally:
+### 1. Ingest SEC Filings
 
 ```bash
-# Example: ingest a ticker (10-K/10-Q depending on your request payload)
 curl -X POST "http://localhost:8000/api/v1/edgar/ingest" \
   -H "Content-Type: application/json" \
   -d '{
@@ -123,164 +146,161 @@ curl -X POST "http://localhost:8000/api/v1/edgar/ingest" \
   }'
 ```
 
-This returns a `task_id`. Poll status:
+### 2. Index for Search
 
 ```bash
-curl "http://localhost:8000/api/v1/edgar/status/<task_id>"
-```
-
-Artifacts written locally:
-- `backend/data/filings/<TICKER>/<FORM>/<ACCESSION>.html`
-- `backend/data/parsed/<TICKER>/<FORM>/<ACCESSION>.json`
-
-> Ingestion **does not automatically index embeddings**. Indexing is a separate step.
-
----
-
-### Step B — Index parsed filings into the vector store (Chroma)
-Index a single ticker:
-
-```bash
+# Index a specific ticker
 curl -X POST "http://localhost:8000/api/v1/retrieval/index" \
   -H "Content-Type: application/json" \
-  -d '{
-    "ticker": "AAPL"
-  }'
-```
+  -d '{"ticker": "AAPL"}'
 
-Or index everything under `backend/data/parsed`:
-
-```bash
+# Or index all parsed filings
 curl -X POST "http://localhost:8000/api/v1/retrieval/index-all"
 ```
 
-Stats / sanity checks:
-```bash
-curl "http://localhost:8000/api/v1/retrieval/stats"
-curl "http://localhost:8000/api/v1/retrieval/health"
-```
-
-Chroma persistence location:
-- `backend/data/chroma`
-
----
-
-### Step C — Chat with RAG enabled
-In the UI (frontend), go to `/chat` and ask questions.
-
-Or via cURL:
+### 3. Chat with RAG
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/chat/" \
   -H "Content-Type: application/json" \
   -d '{
-    "session_id": "demo-session-1",
-    "message": "Summarize risk factors discussed in the most recent 10-K.",
+    "message": "What are Apple'\''s main risk factors?",
     "use_rag": true,
-    "use_templates": true,
-    "ticker_filter": "AAPL",
-    "filing_type_filter": "10-K"
+    "ticker_filter": "AAPL"
   }'
 ```
 
-If retrieval finds relevant chunks, the response will include a **Sources** section.
-
 ---
 
-## API overview
+## API Reference
 
-Base prefix:
-- `/api/v1`
+### Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/auth/register` | Create new account |
+| POST | `/api/v1/auth/login` | Login with email/password |
+| POST | `/api/v1/auth/google` | Google OAuth login |
+| POST | `/api/v1/auth/logout` | Logout (clears cookie) |
+| GET | `/api/v1/auth/me` | Get current user |
 
 ### Chat
-- `POST /api/v1/chat/` — send a message (supports RAG + filters)
-- `GET  /api/v1/chat/health` — LLM health check
-- `POST /api/v1/chat/clear` — clear a session’s in-memory history
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/chat/` | Send message (RAG-enabled) |
+| POST | `/api/v1/chat/sessions` | Create chat session |
+| GET | `/api/v1/chat/sessions` | List user sessions |
+| GET | `/api/v1/chat/sessions/{id}` | Get session with messages |
 
 ### EDGAR
-- `POST /api/v1/edgar/ingest` — background ingestion task
-- `GET  /api/v1/edgar/status/{task_id}` — check ingestion progress
-- `GET  /api/v1/edgar/filings/{ticker}` — list locally stored filings
-- `GET  /api/v1/edgar/filings/{ticker}/{accession}` — get parsed filing data
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/edgar/ingest` | Start ingestion task |
+| GET | `/api/v1/edgar/status/{task_id}` | Check task status |
+| GET | `/api/v1/edgar/filings/{ticker}` | List stored filings |
 
-### Retrieval / Vector Search
-- `POST /api/v1/retrieval/index` — chunk + embed + upsert a ticker’s parsed filings
-- `POST /api/v1/retrieval/index-all` — index everything already parsed
-- `POST /api/v1/retrieval/search` — semantic search (debug)
-- `GET  /api/v1/retrieval/stats` — collection stats
-- `GET  /api/v1/retrieval/stats/{ticker}` — stats by ticker
-- `DELETE /api/v1/retrieval/{ticker}` — remove ticker docs from the vector store
-- `GET  /api/v1/retrieval/health` — vector store health
-
----
-
-## Architecture (current)
-
-1. **Ingest**
-   - Resolve CIK for ticker
-   - Fetch filings list from SEC submissions API
-   - Download filing HTML
-   - Parse filing into sections (Item 1, 1A, 7, 8, etc.)
-   - Save `data/filings` + `data/parsed`
-
-2. **Index**
-   - Chunk parsed sections with overlap
-   - Embed with OpenAI embeddings
-   - Upsert into ChromaDB with metadata
-
-3. **Chat**
-   - Optionally retrieve top chunks (with ticker/form filters)
-   - Inject retrieved context into the prompt
-   - Generate response via configured LLM provider
-   - Append **Sources** (citations) when available
+### Retrieval
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/retrieval/index` | Index a ticker's filings |
+| POST | `/api/v1/retrieval/index-all` | Index all parsed filings |
+| POST | `/api/v1/retrieval/search` | Direct semantic search |
+| GET | `/api/v1/retrieval/stats` | Collection statistics |
 
 ---
 
-## Configuration notes
+## Project Structure
 
-### SEC User-Agent is mandatory
-The SEC requires a descriptive User-Agent string. Set:
-```bash
-SEC_USER_AGENT="Your Name your.email@domain.com"
+```
+MacroMap/
+├── backend/
+│   ├── app/
+│   │   ├── api/           # Route handlers
+│   │   ├── core/          # Config, auth, database
+│   │   ├── models/        # SQLAlchemy models
+│   │   └── services/      # Business logic
+│   │       ├── edgar/     # SEC filing ingestion
+│   │       ├── llm/       # LLM providers & prompts
+│   │       └── retrieval/ # RAG pipeline
+│   ├── data/              # Local storage
+│   │   ├── filings/       # Raw HTML
+│   │   ├── parsed/        # Parsed JSON
+│   │   └── chroma/        # Vector store
+│   └── tests/             # Integration tests
+├── frontend/
+│   ├── app/               # Next.js app router
+│   ├── components/        # React components
+│   └── lib/               # API client, utilities
+└── scripts/               # Utility scripts
 ```
 
-### Embeddings are OpenAI-only (today)
-Even if you use Ollama/Bedrock/HF for generation, indexing currently uses OpenAI embeddings.
+---
 
-### Data persistence
-- Parsed filings and raw HTML persist under `backend/data/`
-- Vectors persist under `backend/data/chroma`
-- Chat history is **in-memory** by `session_id` (lost on server restart)
+## Deployment
+
+### Backend (Railway)
+
+1. Connect your GitHub repo to Railway
+2. Set the root directory to `backend`
+3. Add environment variables in Railway dashboard
+4. Deploy — Railway auto-detects the Dockerfile
+
+### Frontend (Vercel)
+
+1. Import project to Vercel
+2. Set root directory to `frontend`
+3. Add `NEXT_PUBLIC_API_URL` pointing to your Railway backend
+4. Deploy
 
 ---
 
-## Troubleshooting
+## Security Features
 
-### “No sources” / RAG not working
-- Confirm you **indexed** after ingestion:
-  - `POST /api/v1/retrieval/index` (or `/index-all`)
-- Confirm vector store has docs:
-  - `GET /api/v1/retrieval/stats`
-
-### SEC request failures (403 / throttling)
-- Ensure `SEC_USER_AGENT` is set and descriptive
-- Slow down ingestion / reduce limits (avoid rapid repeated calls)
-- Try again later; EDGAR endpoints rate limit aggressively
-
-### Frontend can’t reach backend
-- Check `NEXT_PUBLIC_API_URL` in `frontend/.env.local`
-- Ensure backend is running on the port you configured
+- **httpOnly Cookies** — JWT tokens stored securely, immune to XSS
+- **CORS Configuration** — Strict origin validation
+- **Rate Limiting** — Prevents API abuse (slowapi)
+- **Password Hashing** — bcrypt with salt
+- **Input Validation** — Pydantic models for all inputs
 
 ---
 
-## Roadmap ideas
-- XBRL extraction and deterministic KPI calculations (margin, liquidity, leverage)
-- Multi-document comparisons (peer benchmarking)
-- Evaluation harness (answer quality + citation correctness)
-- Persistent chat history (DB-backed sessions)
-- Auth + per-user workspaces (tickers, watchlists, notes)
+## Reducing Hallucinations
+
+MacroMap uses several techniques to ground responses in facts:
+
+1. **RAG Pipeline** — Every answer draws from actual SEC filings
+2. **Source Citations** — Responses include document references
+3. **Query Expansion** — Multiple search queries improve recall
+4. **Cross-Encoder Reranking** — Better precision in retrieved context
+5. **Structured Prompts** — LLM instructed to cite sources and acknowledge uncertainty
+
+---
+
+## Testing
+
+```bash
+cd backend
+
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=app
+
+# Run specific test file
+pytest tests/test_chat.py -v
+```
 
 ---
 
 ## License
-Add a license file if you intend for others to reuse this code.
+
+MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+- SEC EDGAR for public filing data
+- OpenAI for embeddings and language models
+- ChromaDB for vector storage
+- The FastAPI and Next.js communities
